@@ -280,6 +280,43 @@ __global__ void shadeFakeMaterial(
     }
 }
 
+__global__ void shadeMaterial(
+    int iter,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials) {
+    
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < num_paths)
+    {
+        PathSegment& pathSegment = pathSegments[idx];
+    
+        ShadeableIntersection intersection = shadeableIntersections[idx];
+        if (intersection.t > 0.0f) // if the intersection exists...
+        {
+            if (pathSegment.remainingBounces <= 0) return;
+            glm::vec3 isectPos = pathSegment.ray.origin + intersection.t * pathSegment.ray.direction;
+            Material material = materials[intersection.materialId];
+
+            // Case 0: Hit Light source
+            if (materials[intersection.materialId].emittance > 0.0f) {
+                pathSegment.color *= (material.color * material.emittance);
+                pathSegment.remainingBounces = 0;
+            }
+			else { // Case 1: Hit non-light source
+                // make next ray 
+                thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
+                thrust::uniform_real_distribution<float> u01(0, 1);
+                scatterRay(pathSegment, isectPos, intersection.surfaceNormal, material, rng);
+            }
+        }
+        else { // Case 2: no intersection 
+            pathSegments[idx].color = glm::vec3(0.0f);
+            pathSegments[idx].remainingBounces = 0;
+        }
+    }
+}
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
 {
@@ -342,12 +379,14 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // TODO: perform one iteration of path tracing
 
+    // set up ray's PathSegment
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
     int num_paths = dev_path_end - dev_paths;
+
 
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
@@ -358,20 +397,18 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-        // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+
+        // 0. compute intersections -> dev_intersections
+        computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             num_paths,
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
             dev_intersections
-        );
-        checkCUDAError("trace one bounce");
-        cudaDeviceSynchronize();
-        depth++;
-
+            );
+        checkCUDAError("compute intersections");
         // TODO:
         // --- Shading Stage ---
         // Shade path segments based on intersections and generate new rays by
@@ -380,15 +417,20 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
-
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        
+        // 1. add accumulated color + generate new rays 
+        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
             dev_intersections,
             dev_paths,
             dev_materials
-        );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+			);
+		checkCUDAError("shade and bounce");
+        cudaDeviceSynchronize();
+        
+        depth++;
+        iterationComplete = (depth >= traceDepth); // TODO: should be based off stream compaction results.
 
         if (guiData != NULL)
         {
