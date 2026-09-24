@@ -323,7 +323,17 @@ __global__ void shadeMaterial(
                 // make next ray 
                 thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
                 thrust::uniform_real_distribution<float> u01(0, 1);
-                scatterRay(pathSegment, isectPos, intersection.surfaceNormal, material, rng);
+
+                // LIGHT TRANSPORT EQUATION 
+				// f_r(wo, wi) * cosTheta * L_incoming / pdf(wi)
+
+                // find next ray bounce, bsdf, and pdf
+                float pdf;
+                glm::vec3 bsdf = scatterRay(pathSegment, isectPos, intersection.surfaceNormal, material, pdf, rng); 
+
+				float cosTheta = glm::abs(glm::dot(intersection.surfaceNormal, pathSegment.ray.direction));
+                pathSegment.color *= bsdf * cosTheta / pdf; // throughput 
+                pathSegment.remainingBounces -= 1;
             }
         }
         else { // Case 2: no intersection 

@@ -1,5 +1,5 @@
 #include "interactions.h"
-
+#include "bsdf.h"
 #include "utilities.h"
 
 #include <thrust/random.h>
@@ -44,24 +44,38 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
-__host__ __device__ void scatterRay(
+__host__ __device__ glm::vec3 scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material &m,
+    float &pdf,
     thrust::default_random_engine &rng)
 {
     
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above. 
 
-    glm::vec3 dir = calculateRandomDirectionInHemisphere(normal, rng);
+    /*glm::vec3 dir = calculateRandomDirectionInHemisphere(normal, rng);
 	pathSegment.ray.origin = intersect + 0.001f * normal;
 	pathSegment.ray.direction = dir;
-    pathSegment.remainingBounces -= 1;
+    pathSegment.remainingBounces -= 1;*/
 
-    // f_r(ƒÖo, ƒÖi) * cos ƒÆ * L_incoming / pdf(ƒÖi)
-	// (R/ƒÎ) * cos ƒÆ * L_incoming / (cos ƒÆ / ƒÎ)
-    // R * L_incoming 
-	pathSegment.color *= m.color;
+   
+    if (m.hasRefractive > 0.0f) // DIELECTRIC 
+    {
+        return sampleDielectric(pathSegment, intersect, normal, m, pdf, rng);
+
+    }
+    else if (m.hasReflective > 0.0f) // SPECULAR MIRROR 
+    {
+        return sampleSpecularReflect(pathSegment, intersect, normal, m, pdf, rng);
+    }
+	else // DIFFUSE
+    {
+        return sampleDiffuse(pathSegment, intersect, normal, m, pdf, rng);
+    }
+    
+	/*pdf = glm::dot(dir, normal) / PI;
+	return m.color / PI;*/
 }
