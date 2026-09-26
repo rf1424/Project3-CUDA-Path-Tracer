@@ -16,7 +16,8 @@ struct Photon
 void photonMap(
     Scene* scene, int numPhotons, int iter,
     Geom* geoms, int geomsSize,
-    Material* materials, int materialsSize);
+    Material* materials, int materialsSize,
+    Camera cam, glm::vec3* image);
 
 
 void generatePhotonDirections(

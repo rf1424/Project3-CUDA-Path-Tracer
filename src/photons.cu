@@ -87,7 +87,32 @@ __global__ void computePhotonIntersections(
     }
 }
 
-__global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections, int numPhotons, Material* dev_materials) {
+__device__ glm::vec2 projectToScreen(
+    const Camera& cam,
+    const glm::vec3& pos)
+{
+    glm::vec3 viewHat = glm::normalize(cam.view);
+    glm::vec3 Q = pos - cam.position;
+    float z = glm::dot(Q, viewHat);
+
+    if (z > 0.0f) {
+        float qx = glm::dot(Q, cam.right);
+        float qy = glm::dot(Q, cam.up);
+        float viewLength = glm::length(cam.view);
+
+        float px = cam.resolution.x * 0.5f - qx * viewLength / (z * cam.pixelLength.x);
+        float py = cam.resolution.y * 0.5f - qy * viewLength / (z * cam.pixelLength.y);
+
+        int x = static_cast<int>(px);
+        int y = static_cast<int>(py);
+        return glm::vec2(x, y);
+    } else {
+		return glm::vec2(-1.0f, -1.0f);
+    }
+}
+
+
+__global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections, int numPhotons, Material* materials, Camera cam, glm::vec3* image, int iter) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPhotons) {
         return;
@@ -95,9 +120,23 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
     Photon photon = photons[idx];
     ShadeableIntersection intersection = intersections[idx];
 
-    if (intersection.t > 0.0f) {
+	Material material = materials[intersection.materialId];
+
+    if (intersection.t > 0.0f && material.hasRefractive) {
         // Handle photon interaction with the surface
         // todo 
+        //test code
+        // project into screen space 
+        // color pixel PINK vec3(1, 0, 1)
+        glm::vec3 hitPoint = getPointOnRay(Ray{ photon.origin, photon.direction }, intersection.t);
+		glm::vec2 screenPos = projectToScreen(cam, hitPoint);
+
+        if (screenPos.x >= 0 && screenPos.x < cam.resolution.x && screenPos.y >= 0 && screenPos.y < cam.resolution.y) {
+            int pixelIndex = screenPos.y * cam.resolution.x + screenPos.x;
+            image[pixelIndex] = glm::vec3(1.0f, 0.0f, 1.0f) * static_cast<float>(iter);
+        }
+        
+        photons[idx].remainingBounces = 0;
 
     } else {
         // Photon did not hit any surface
@@ -116,9 +155,10 @@ struct isTerminatedPhoton {
 
 void photonMap(Scene* scene, int numPhotons, int iter, 
     Geom* geoms, int geomsSize, 
-    Material* materials, int materialsSize) {
+    Material* materials, int materialsSize,
+    Camera cam, glm::vec3* image) {
     // temporarily set a point light 
-    glm::vec3 pos = glm::vec3(0.0f, 5.0f, 0.0f);
+    glm::vec3 pos = glm::vec3(0.0f, 9.0f, 0.0f);
     glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
     float power = 5.0f;
 
@@ -162,7 +202,10 @@ void photonMap(Scene* scene, int numPhotons, int iter,
             dev_photons,
             dev_photon_intersections,
             numPhotons,
-            materials
+            materials,
+            cam,
+            image,
+            iter
 			);
 
         checkCUDAError("evalPhoton");

@@ -17,6 +17,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "photons.h"
 
 
 
@@ -252,7 +253,7 @@ __global__ void shadeMaterial(
         PathSegment& pathSegment = pathSegments[idx];
     
         ShadeableIntersection intersection = shadeableIntersections[idx];
-        if (intersection.t > 0.0f) // if the intersection exists...
+        if (intersection.t > 0.0f) // intersection exists
         {
             if (pathSegment.remainingBounces <= 0) return;
             glm::vec3 isectPos = pathSegment.ray.origin + intersection.t * pathSegment.ray.direction;
@@ -411,8 +412,16 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
 
+    // PHOTON MAP PASS
+	int numPhotons = 500000; // number of photons to emit
+    photonMap(hst_scene, numPhotons, iter,
+        dev_geoms, hst_scene->geoms.size(),
+        dev_materials, hst_scene->materials.size(),
+        cam, dev_image);
+
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,

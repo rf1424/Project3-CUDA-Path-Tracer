@@ -52,15 +52,6 @@ __host__ __device__ glm::vec3 scatterRay(
     float &pdf,
     thrust::default_random_engine &rng)
 {
-    
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above. 
-
-    /*glm::vec3 dir = calculateRandomDirectionInHemisphere(normal, rng);
-	pathSegment.ray.origin = intersect + 0.001f * normal;
-	pathSegment.ray.direction = dir;
-    pathSegment.remainingBounces -= 1;*/
-
    
     if (m.hasRefractive > 0.0f) // DIELECTRIC 
     {
