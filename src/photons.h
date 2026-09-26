@@ -8,9 +8,15 @@ struct Photon
     glm::vec3 origin;
     glm::vec3 direction;
     glm::vec3 power;
+    bool passedGlass;
+    int remainingBounces;
 };
 
-void photonMap(Scene* scene, int numPhotons, int iter);
+
+void photonMap(
+    Scene* scene, int numPhotons, int iter,
+    Geom* geoms, int geomsSize,
+    Material* materials, int materialsSize);
 
 
 void generatePhotonDirections(

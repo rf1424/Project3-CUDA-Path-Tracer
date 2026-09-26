@@ -1,5 +1,7 @@
 #include "intersections.h"
 
+#include <cfloat>
+
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
@@ -110,4 +112,44 @@ __host__ __device__ float sphereIntersectionTest(
     }
 
     return glm::length(r.origin - intersectionPoint);
+}
+
+__host__ __device__ void findClosestIntersection(
+    Ray r,
+    Geom* geoms,
+    int geoms_size,
+    float& t_min,
+    glm::vec3& intersect_point,
+    glm::vec3& normal,
+    int& hit_geom_index)
+{
+    float t;
+    glm::vec3 tmp_intersect;
+    glm::vec3 tmp_normal;
+    bool outside = true;
+
+    t_min = FLT_MAX;
+    hit_geom_index = -1;
+
+    for (int i = 0; i < geoms_size; i++)
+    {
+        Geom& geom = geoms[i];
+
+        if (geom.type == CUBE)
+        {
+            t = boxIntersectionTest(geom, r, tmp_intersect, tmp_normal, outside);
+        }
+        else if (geom.type == SPHERE)
+        {
+            t = sphereIntersectionTest(geom, r, tmp_intersect, tmp_normal, outside);
+        }
+
+        if (t > 0.0f && t_min > t)
+        {
+            t_min = t;
+            hit_geom_index = i;
+            intersect_point = tmp_intersect;
+            normal = tmp_normal;
+        }
+    }
 }
