@@ -5,7 +5,7 @@
 #include <thrust/random.h>
 
 __host__ __device__ glm::vec3 sampleDiffuse(
-    PathSegment& pathSegment,
+    Ray& ray,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
@@ -14,8 +14,8 @@ __host__ __device__ glm::vec3 sampleDiffuse(
 {
     // wi
     glm::vec3 wi = calculateRandomDirectionInHemisphere(normal, rng);
-    pathSegment.ray.origin = intersect + 0.001f * wi;
-    pathSegment.ray.direction = wi;
+    ray.origin = intersect + 0.001f * wi;
+    ray.direction = wi;
 
     pdf = glm::dot(wi, normal) / PI;
 
@@ -24,7 +24,7 @@ __host__ __device__ glm::vec3 sampleDiffuse(
 }
 
 __host__ __device__ glm::vec3 sampleSpecularReflect(
-    PathSegment& pathSegment,
+    Ray& ray,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
@@ -32,9 +32,9 @@ __host__ __device__ glm::vec3 sampleSpecularReflect(
     thrust::default_random_engine& rng)
 {
     // wi
-	glm::vec3 wi = glm::reflect(pathSegment.ray.direction, normal);
-    pathSegment.ray.origin = intersect + 0.001f * wi;
-    pathSegment.ray.direction = wi;
+	glm::vec3 wi = glm::reflect(ray.direction, normal);
+    ray.origin = intersect + 0.001f * wi;
+    ray.direction = wi;
     
 	pdf = 1.0f;
 	glm::vec3 bsdf = m.color / glm::dot(wi, normal);
@@ -74,7 +74,7 @@ __host__ __device__ float computeFresnelDielectric(
 }
 
 __host__ __device__ glm::vec3 sampleDielectric(
-    PathSegment& pathSegment,
+    Ray& ray,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
@@ -85,7 +85,7 @@ __host__ __device__ glm::vec3 sampleDielectric(
     float r = u01(rng);
 
     // try refracting to check TIR case
-    glm::vec3 wo = - pathSegment.ray.direction;
+    glm::vec3 wo = - ray.direction;
     float cosThetaI = glm::dot(wo, normal); // wo, nor
 
     float Fresnel = computeFresnelDielectric(cosThetaI, 1.0f, m.indexOfRefraction);
@@ -94,9 +94,9 @@ __host__ __device__ glm::vec3 sampleDielectric(
 
     if (r < Fresnel) { // REFLECT if TIR or fresnel is close to 1 OR 
                        //TIR (in this case Fresnel ==1)
-        wi = glm::reflect(pathSegment.ray.direction, normal);
-        pathSegment.ray.origin = intersect + 0.001f * wi;
-        pathSegment.ray.direction = wi;
+        wi = glm::reflect(ray.direction, normal);
+        ray.origin = intersect + 0.001f * wi;
+        ray.direction = wi;
     }
     else { // TRANSMIT if fresnel is close to 0
         float eta;
@@ -114,8 +114,8 @@ __host__ __device__ glm::vec3 sampleDielectric(
 
         wi = glm::refract(-wo, n, eta);
 
-        pathSegment.ray.origin = intersect + 0.001f * wi;
-		pathSegment.ray.direction = wi;
+        ray.origin = intersect + 0.001f * wi;
+		ray.direction = wi;
     }
 
     pdf = 1.0f;

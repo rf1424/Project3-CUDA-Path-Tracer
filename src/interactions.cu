@@ -45,7 +45,7 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 __host__ __device__ glm::vec3 scatterRay(
-    PathSegment & pathSegment,
+    Ray & ray,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material &m,
@@ -55,16 +55,16 @@ __host__ __device__ glm::vec3 scatterRay(
    
     if (m.hasRefractive > 0.0f) // DIELECTRIC 
     {
-        return sampleDielectric(pathSegment, intersect, normal, m, pdf, rng);
+        return sampleDielectric(ray, intersect, normal, m, pdf, rng);
 
     }
     else if (m.hasReflective > 0.0f) // SPECULAR MIRROR 
     {
-        return sampleSpecularReflect(pathSegment, intersect, normal, m, pdf, rng);
+        return sampleSpecularReflect(ray, intersect, normal, m, pdf, rng);
     }
 	else // DIFFUSE
     {
-        return sampleDiffuse(pathSegment, intersect, normal, m, pdf, rng);
+        return sampleDiffuse(ray, intersect, normal, m, pdf, rng);
     }
     
 	/*pdf = glm::dot(dir, normal) / PI;

@@ -1,6 +1,7 @@
 #include "photons.h"
-#include "intersections.h" // utilhash
-#include "utilities.h"      // PI, TWO_PI
+#include "intersections.h" 
+#include "utilities.h"    
+#include "interactions.h"
 
 #include <thrust/random.h>
 #include <thrust/remove.h>
@@ -9,11 +10,12 @@
 
 
 // temp
-__host__ __device__ inline thrust::default_random_engine makePhotonRandomEngine(int iter, int index)
+__host__ __device__ inline thrust::default_random_engine makePhotonRandomEngine(int iter, int index, int depth)
 {
     const unsigned int kPhotonStream = 9999u;
     unsigned int h = utilhash((1u << 31) | (kPhotonStream << 22) | static_cast<unsigned int>(iter))
-        ^ utilhash(static_cast<unsigned int>(index));
+        ^ utilhash(static_cast<unsigned int>(index))
+        ^ utilhash(static_cast<unsigned int>(depth));
     return thrust::default_random_engine(h);
 }
 
@@ -32,7 +34,7 @@ __global__ void kernGeneratePhotonDirections(
         return;
     }
 
-    thrust::default_random_engine rng = makePhotonRandomEngine(iter, idx);
+    thrust::default_random_engine rng = makePhotonRandomEngine(iter, idx, traceDepth);
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     // Uniform point on the unit sphere temp
@@ -122,22 +124,46 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
 
 	Material material = materials[intersection.materialId];
 
-    if (intersection.t > 0.0f && material.hasRefractive) {
-        // Handle photon interaction with the surface
-        // todo 
-        //test code
-        // project into screen space 
-        // color pixel PINK vec3(1, 0, 1)
-        glm::vec3 hitPoint = getPointOnRay(Ray{ photon.origin, photon.direction }, intersection.t);
-		glm::vec2 screenPos = projectToScreen(cam, hitPoint);
+    if (intersection.t > 0.0f) {
+        Ray photonRay{ photon.origin, photon.direction };
+        glm::vec3 hitPoint = getPointOnRay(photonRay, intersection.t);
 
-        if (screenPos.x >= 0 && screenPos.x < cam.resolution.x && screenPos.y >= 0 && screenPos.y < cam.resolution.y) {
-            int pixelIndex = screenPos.y * cam.resolution.x + screenPos.x;
-            image[pixelIndex] = glm::vec3(1.0f, 0.0f, 1.0f) * static_cast<float>(iter);
+        if (material.hasReflective || material.hasRefractive) { // glass, mirror
+			photon.passedGlass = true;
+
+            thrust::default_random_engine rng = makePhotonRandomEngine(iter, idx, photon.remainingBounces);
+            float pdf;
+            glm::vec3 bsdf = scatterRay(photonRay, hitPoint, intersection.surfaceNormal, material, pdf, rng);
+
+            float cosTheta = glm::abs(glm::dot(intersection.surfaceNormal, photonRay.direction));
+            photon.power *= bsdf * cosTheta / pdf; // throughput 
+
+            photon.origin = photonRay.origin;
+            photon.direction = photonRay.direction;
+            photon.remainingBounces -= 1;
+
+            photons[idx] = photon;
         }
-        
-        photons[idx].remainingBounces = 0;
+        else { // diffuse 
+            if (photon.passedGlass) {
+                // todo test code 
+                // project into screen space 
+                // color pixel PINK vec3(1, 0, 1)
+                glm::vec2 screenPos = projectToScreen(cam, hitPoint);
 
+                if (screenPos.x >= 0 && screenPos.x < cam.resolution.x && screenPos.y >= 0 && screenPos.y < cam.resolution.y) {
+                    int pixelIndex = screenPos.y * cam.resolution.x + screenPos.x;
+                    //image[pixelIndex] = glm::vec3(1.0f, 0.0f, 1.0f) * static_cast<float>(iter);
+                    //image[pixelIndex] += photon.power * static_cast<float>(iter);
+                    glm::vec3 contribution = photon.power * (material.color / PI)*1000.0f;
+                    atomicAdd(&image[pixelIndex].x, contribution.x);
+                    atomicAdd(&image[pixelIndex].y, contribution.y);
+                    atomicAdd(&image[pixelIndex].z, contribution.z);
+                }
+            }
+            // todo terminate on first diffuse hit for now 
+            photons[idx].remainingBounces = 0;
+        }
     } else {
         // Photon did not hit any surface
 		photons[idx].remainingBounces = 0; // terminated

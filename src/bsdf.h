@@ -7,7 +7,7 @@
 #include <thrust/random.h>
 
 __host__ __device__ glm::vec3 sampleDiffuse(
-    PathSegment& pathSegment,
+    Ray& ray,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
@@ -15,7 +15,7 @@ __host__ __device__ glm::vec3 sampleDiffuse(
     thrust::default_random_engine& rng);
 
 __host__ __device__ glm::vec3 sampleSpecularReflect(
-    PathSegment& pathSegment,
+    Ray& ray,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
@@ -32,7 +32,7 @@ __host__ __device__ float computeFresnelDielectric(
 // cosThetaI = dot(wo, N): >0 entering (etaI->etaT), <0 exiting 
 // returns reflected fraction (1-result = transmitted) / 1 on TIR
 __host__ __device__ glm::vec3 sampleDielectric(
-    PathSegment& pathSegment,
+    Ray& ray,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,

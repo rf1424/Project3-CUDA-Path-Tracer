@@ -40,8 +40,11 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
  *
  * You may need to change the parameter list for your purposes!
  */
+
+// returns bsdf
+// populate pdf and pathSegment (wi) 
 __host__ __device__ glm::vec3 scatterRay(
-    PathSegment& pathSegment,
+    Ray& ray,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,

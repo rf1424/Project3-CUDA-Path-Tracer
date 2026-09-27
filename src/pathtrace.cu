@@ -275,7 +275,7 @@ __global__ void shadeMaterial(
 
                 // find next ray bounce, bsdf, and pdf
                 float pdf;
-                glm::vec3 bsdf = scatterRay(pathSegment, isectPos, intersection.surfaceNormal, material, pdf, rng); 
+                glm::vec3 bsdf = scatterRay(pathSegment.ray, isectPos, intersection.surfaceNormal, material, pdf, rng); 
 
 				float cosTheta = glm::abs(glm::dot(intersection.surfaceNormal, pathSegment.ray.direction));
                 pathSegment.color *= bsdf * cosTheta / pdf; // throughput 
@@ -410,14 +410,14 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths); 
 
     // PHOTON MAP PASS
-	int numPhotons = 500000; // number of photons to emit
-    photonMap(hst_scene, numPhotons, iter,
-        dev_geoms, hst_scene->geoms.size(),
-        dev_materials, hst_scene->materials.size(),
-        cam, dev_image);
+	//int numPhotons = 500000; // number of photons to emit
+ //   photonMap(hst_scene, numPhotons, iter,
+ //       dev_geoms, hst_scene->geoms.size(),
+ //       dev_materials, hst_scene->materials.size(),
+ //       cam, dev_image);
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
