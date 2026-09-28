@@ -69,6 +69,7 @@ set(headers
     src/utilities.h
     src/bsdf.h
     src/photons.h
+    src/sdf.h
 )
 
 set(sources
@@ -83,6 +84,7 @@ set(sources
     src/utilities.cpp
     src/bsdf.cu
     src/photons.cu
+    src/sdf.cu
 )
 
 set(imgui_headers

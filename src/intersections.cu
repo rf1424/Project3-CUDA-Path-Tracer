@@ -1,4 +1,5 @@
 #include "intersections.h"
+#include "sdf.h"
 
 #include <cfloat>
 
@@ -36,7 +37,7 @@ __host__ __device__ float boxIntersectionTest(
             if (tb < tmax)
             {
                 tmax = tb;
-                tmax_n = n;
+                tmax_n = - n;
             }
         }
     }
@@ -143,6 +144,9 @@ __host__ __device__ void findClosestIntersection(
         {
             t = sphereIntersectionTest(geom, r, tmp_intersect, tmp_normal, outside);
         }
+        else if (geom.type == SDF)         {
+            t = sdfIntersectionTest(r, tmp_intersect, tmp_normal);
+		}
 
         if (t > 0.0f && t_min > t)
         {

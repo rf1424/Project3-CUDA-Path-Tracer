@@ -85,9 +85,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newGeom.type = CUBE;
         }
-        else
+        else if (type == "sphere")
         {
             newGeom.type = SPHERE;
+        }
+        else {
+			newGeom.type = SDF;
         }
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];

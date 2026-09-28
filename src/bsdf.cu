@@ -33,7 +33,8 @@ __host__ __device__ glm::vec3 sampleSpecularReflect(
 {
     // wi
 	glm::vec3 wi = glm::reflect(ray.direction, normal);
-    ray.origin = intersect + 0.001f * wi;
+    glm::vec3 offsetNormal = glm::dot(wi, normal) > 0.0f ? normal : -normal;
+    ray.origin = intersect + 0.001f * offsetNormal;
     ray.direction = wi;
     
 	pdf = 1.0f;
@@ -95,7 +96,8 @@ __host__ __device__ glm::vec3 sampleDielectric(
     if (r < Fresnel) { // REFLECT if TIR or fresnel is close to 1 OR 
                        //TIR (in this case Fresnel ==1)
         wi = glm::reflect(ray.direction, normal);
-        ray.origin = intersect + 0.001f * wi;
+        glm::vec3 offsetNormal = glm::dot(wi, normal) > 0.0f ? normal : -normal;
+        ray.origin = intersect + 0.001f * offsetNormal;
         ray.direction = wi;
     }
     else { // TRANSMIT if fresnel is close to 0
@@ -114,7 +116,8 @@ __host__ __device__ glm::vec3 sampleDielectric(
 
         wi = glm::refract(-wo, n, eta);
 
-        ray.origin = intersect + 0.001f * wi;
+        glm::vec3 offsetNormal = glm::dot(wi, normal) > 0.0f ? normal : -normal;
+        ray.origin = intersect + 0.001f * offsetNormal;
 		ray.direction = wi;
     }
 

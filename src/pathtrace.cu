@@ -33,7 +33,17 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
     return thrust::default_random_engine(h);
 }
 
-//Kernel that writes the image to the OpenGL PBO directly.
+// ACES filmic tonemapping
+static __host__ __device__ glm::vec3 acesFilmicTonemap(glm::vec3 x)
+{
+    const float a = 2.51f;
+    const float b = 0.03f;
+    const float c = 2.43f;
+    const float d = 0.59f;
+    const float e = 0.14f;
+    return glm::clamp((x * (a * x + glm::vec3(b))) / (x * (c * x + glm::vec3(d)) + glm::vec3(e)), 0.0f, 1.0f);
+}
+
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -44,10 +54,17 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
         int index = x + (y * resolution.x);
         glm::vec3 pix = image[index];
 
+        glm::vec3 linearColor = glm::max(pix / (float)iter, glm::vec3(0.0f));
+
+        // color correction 
+        glm::vec3 tonemapped = acesFilmicTonemap(linearColor);
+        const float invGamma = 1.0f / 2.2f;
+        glm::vec3 gammaColor = glm::pow(tonemapped, glm::vec3(invGamma));
+
         glm::ivec3 color;
-        color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+        color.x = glm::clamp((int)(gammaColor.x * 255.0f), 0, 255);
+        color.y = glm::clamp((int)(gammaColor.y * 255.0f), 0, 255);
+        color.z = glm::clamp((int)(gammaColor.z * 255.0f), 0, 255);
 
         // Each thread writes one pixel location in the texture (textel)
         pbo[index].w = 0;
@@ -410,14 +427,15 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths); 
+    //printf("num_paths before finalGather: %d\n", num_paths);
+    //finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths); 
 
     // PHOTON MAP PASS
-	//int numPhotons = 500000; // number of photons to emit
- //   photonMap(hst_scene, numPhotons, iter,
- //       dev_geoms, hst_scene->geoms.size(),
- //       dev_materials, hst_scene->materials.size(),
- //       cam, dev_image);
+	int numPhotons = 500000; // number of photons to emit
+    photonMap(hst_scene, numPhotons, iter,
+        dev_geoms, hst_scene->geoms.size(),
+        dev_materials, hst_scene->materials.size(),
+        cam, dev_image);
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
