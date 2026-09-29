@@ -104,7 +104,29 @@ void Scene::loadFromJSON(const std::string& jsonName)
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
-        geoms.push_back(newGeom);
+        if (materials[newGeom.materialid].emittance > 0.0f)
+        {
+            // temp todo: all lights 2D rect area lights
+            newGeom.type = RECT2D;
+            emissiveGeoms.push_back(newGeom);
+        }
+        else
+        {
+            geoms.push_back(newGeom);
+        }
+    }
+    if (data.contains("PhotonLights"))
+    {
+        for (const auto& lightData : data["PhotonLights"])
+        {
+            const auto& pos = lightData["POSITION"];
+            const auto& col = lightData["COLOR"];
+            PhotonLight newLight{};
+            newLight.position = glm::vec3(pos[0], pos[1], pos[2]);
+            newLight.color = glm::vec3(col[0], col[1], col[2]);
+            newLight.power = lightData["POWER"];
+            photonLights.push_back(newLight);
+        }
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;

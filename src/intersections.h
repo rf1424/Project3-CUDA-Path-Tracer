@@ -72,6 +72,13 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec3& normal,
     bool& outside);
 
+__host__ __device__ float rectIntersectionTest(
+    Geom rect,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside);
+
 __host__ __device__ void findClosestIntersection(
     Ray r,
     Geom* geoms,
@@ -79,4 +86,6 @@ __host__ __device__ void findClosestIntersection(
     float& t_min,
     glm::vec3& intersect_point,
     glm::vec3& normal,
-    int& hit_geom_index);
+    int& hit_geom_index,
+    Geom* emissiveGeoms = nullptr,
+    int emissive_size = 0);

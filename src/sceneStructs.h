@@ -13,7 +13,8 @@ enum GeomType
 {
     SPHERE,
     CUBE,
-    SDF
+    SDF,
+    RECT2D
 };
 
 struct Ray
@@ -75,6 +76,7 @@ struct PathSegment
     glm::vec3 color; // passthrough
     int pixelIndex;
     int remainingBounces;
+    bool prevSpecular;
 };
 
 // Use with a corresponding PathSegment to do:
@@ -85,4 +87,11 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+};
+
+struct PhotonLight
+{
+    glm::vec3 position;
+    glm::vec3 color;
+    float power;
 };
