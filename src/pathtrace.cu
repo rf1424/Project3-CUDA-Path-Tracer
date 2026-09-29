@@ -78,6 +78,7 @@ static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 static Geom* dev_geoms = NULL;
+static Geom* dev_emissiveGeoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
@@ -105,6 +106,9 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
+    cudaMalloc(&dev_emissiveGeoms, scene->emissiveGeoms.size() * sizeof(Geom));
+    cudaMemcpy(dev_emissiveGeoms, scene->emissiveGeoms.data(), scene->emissiveGeoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
@@ -121,6 +125,7 @@ void pathtraceFree()
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
+    cudaFree(dev_emissiveGeoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
 	cudaFree(dev_materialIds);
@@ -161,6 +166,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
+        segment.prevSpecular = true; // count direct camera ray as specular for MIS
     }
 }
 
@@ -174,6 +180,8 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
+    Geom* emissiveGeoms,
+    int emissive_size,
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -187,7 +195,8 @@ __global__ void computeIntersections(
         float t_min;
         int hit_geom_index;
 
-        findClosestIntersection(pathSegment.ray, geoms, geoms_size, t_min, intersect_point, normal, hit_geom_index);
+        findClosestIntersection(pathSegment.ray, geoms, geoms_size, t_min, intersect_point, normal, hit_geom_index,
+            emissiveGeoms, emissive_size);
 
         if (hit_geom_index == -1)
         {
@@ -196,7 +205,8 @@ __global__ void computeIntersections(
         else
         {
             intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+            const Geom& hitGeom = (hit_geom_index < geoms_size) ? geoms[hit_geom_index] : emissiveGeoms[hit_geom_index - geoms_size];
+            intersections[path_index].materialId = hitGeom.materialid;
             intersections[path_index].surfaceNormal = normal;
         }
     }
@@ -256,19 +266,133 @@ __global__ void shadeFakeMaterial(
     }
 }
 
+__host__ __device__ float PowerHeuristic(int nf, float fPdf, int ng, float gPdf) {
+    float f = nf * fPdf;
+    float g = ng * gPdf;
+    if (f == 0.0f && g == 0.0f) {
+        return 0.0f;
+    }
+    //float balanced = f / (f + g);
+    float power = (f * f) / (f * f + g * g);
+    return power;
+}
+
+__host__ __device__ float rectArea(const Geom& rect) {
+    glm::vec3 e1 = glm::vec3(rect.transform * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
+    glm::vec3 e2 = glm::vec3(rect.transform * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
+    return glm::length(glm::cross(e1, e2));
+}
+
+__host__ __device__ void sampleRect(const Geom& rect, float u, float v, glm::vec3& pos, glm::vec3& nor) {
+	glm::vec4 localPos = glm::vec4(u - 0.5f, -0.5f, v - 0.5f, 1.0f); // -0.5, 0.5
+    pos = glm::vec3(rect.transform * localPos);
+    nor = glm::normalize(glm::vec3(rect.invTranspose * glm::vec4(0.0f, -1.0f, 0.0f, 0.0f)));
+}
+
+// return f * Li * cos / pdf that is MIS-weighted
+__device__ glm::vec3 DirectMIS(
+    glm::vec3 isectPos,
+    glm::vec3 normal,
+    glm::vec3 wo,
+    const Material& material,
+    Geom* geoms,
+    int geoms_size,
+    Geom* lights,
+    int numLights,
+    Material* materials,
+    thrust::default_random_engine& rng)
+{
+    if (numLights <= 0) return glm::vec3(0.0f);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    glm::vec3 n = glm::dot(normal, wo) < 0.0f ? -normal : normal;
+    glm::vec3 origin = isectPos + 0.001f * n;
+    glm::vec3 f = material.color / PI; // diffuse bsdf
+
+    // choose light from emissiveGeoms
+    int chosenLightIdx = (int)(u01(rng) * numLights);
+    const Geom& light = lights[chosenLightIdx];
+    const Material& lightMat = materials[light.materialid];
+    glm::vec3 Le = lightMat.color * lightMat.emittance;
+    float area = rectArea(light);
+
+    glm::vec3 final = glm::vec3(0.0f);
+
+    // Light sampling
+    {
+        glm::vec3 lightPos, lightNor; // populate 
+        sampleRect(light, u01(rng), u01(rng), lightPos, lightNor);
+        glm::vec3 d = lightPos - origin;
+        float dist2 = glm::dot(d, d);
+        glm::vec3 wi_g = d / sqrtf(dist2);
+        float lambert_g = glm::dot(n, wi_g); // cosTheta on surface
+        float cosLight = glm::dot(-wi_g, lightNor); // cosTheta on light
+
+        if (lambert_g > 0.0f && cosLight > 0.0f) {
+            // solid angle
+            // pdf_area * dA/dw
+            float pdf_gg = (1.0f / (float)numLights) * dist2 / (cosLight * area); 
+            // occlusion
+            Ray shadowRay;
+            shadowRay.origin = origin;
+            shadowRay.direction = wi_g;
+            float t; glm::vec3 p, nor; int hitIdx;
+            findClosestIntersection(shadowRay, geoms, geoms_size, t, p, nor, hitIdx, lights, numLights);
+
+            if (hitIdx == geoms_size + chosenLightIdx) { // no occlusion! 
+                float pdf_fg = lambert_g / PI;
+                float w_gg = PowerHeuristic(1, pdf_gg, 1, pdf_fg);
+                final += f * Le / pdf_gg * lambert_g * w_gg;
+            }
+        }
+    }
+
+    // BSDF sampling
+    {
+        glm::vec3 wi_f = calculateRandomDirectionInHemisphere(n, rng);
+        float lambert_f = glm::dot(n, wi_f);
+        float pdf_ff = lambert_f / PI;
+
+        if (pdf_ff > 0.0f) {
+            Ray bsdfRay;
+            bsdfRay.origin = origin;
+            bsdfRay.direction = wi_f;
+            float t; glm::vec3 p, lightNor; int hitIdx;
+            findClosestIntersection(bsdfRay, geoms, geoms_size, t, p, lightNor, hitIdx, lights, numLights);
+
+            // only counts if it hits the SAME light chosen above
+            if (hitIdx == geoms_size + chosenLightIdx) {
+                float cosLight = glm::dot(-wi_f, lightNor);
+                if (cosLight > 0.0f) {
+                    float pdf_gf = (1.0f / (float)numLights) * t * t / (cosLight * area);
+                    float w_ff = PowerHeuristic(1, pdf_ff, 1, pdf_gf);
+                    final += f * Le / pdf_ff * lambert_f * w_ff;
+                }
+            }
+        }
+    }
+
+    return final;
+}
+
+// Full integrator 
 __global__ void shadeMaterial(
     int iter,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials, 
+    Material* materials,
+    Geom* geoms,
+    int geoms_size,
+    Geom* lights,
+    int numLights,
     glm::vec3* image) {
-    
+
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
     {
         PathSegment& pathSegment = pathSegments[idx];
-    
+
         ShadeableIntersection intersection = shadeableIntersections[idx];
         if (intersection.t > 0.0f) // intersection exists
         {
@@ -277,35 +401,51 @@ __global__ void shadeMaterial(
             Material material = materials[intersection.materialId];
 
             // Case 0: Hit Light source
-            if (materials[intersection.materialId].emittance > 0.0f) {
-                pathSegment.color *= (material.color * material.emittance);
+            if (material.emittance > 0.0f) {
+                bool frontFacing = glm::dot(pathSegment.ray.direction, intersection.surfaceNormal) < 0.0f;
+                // camera ray or after hitting specular-> add Le. 
+                // after diffuse -> already counted by DirectMIS
+                if (pathSegment.prevSpecular && frontFacing) {
+					glm::vec3 Le = material.color * material.emittance;
+					image[pathSegment.pixelIndex] += pathSegment.color * Le; // throughput * Le
+                }
                 pathSegment.remainingBounces = 0;
-                image[pathSegment.pixelIndex] += pathSegment.color;
             }
-			else { // Case 1: Hit non-light source
+            else { // Case 1: Hit non-light source
                 // make next ray 
                 thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
                 thrust::uniform_real_distribution<float> u01(0, 1);
 
                 // LIGHT TRANSPORT EQUATION 
-				// f_r(wo, wi) * cosTheta * L_incoming / pdf(wi)
-
+                // f_r(wo, wi) * cosTheta * L_incoming / pdf(wi)
+                if (!(material.hasReflective || material.hasRefractive)) { // DIFFUSE
+                    // MIS
+                    glm::vec3 wo = -pathSegment.ray.direction;
+                    glm::vec3 directLight = DirectMIS(isectPos, intersection.surfaceNormal, wo, material,
+                        geoms, geoms_size, lights, numLights, materials, rng);
+                    image[pathSegment.pixelIndex] += directLight * pathSegment.color; // directLight * throughput 
+                    pathSegment.prevSpecular = false;
+                }
+                else { // SPECULAR
+                    pathSegment.prevSpecular = true;
+                }
+                
                 // find next ray bounce, bsdf, and pdf
                 float pdf;
                 glm::vec3 bsdf = scatterRay(pathSegment.ray, isectPos, intersection.surfaceNormal, material, pdf, rng); 
 
-				float cosTheta = glm::abs(glm::dot(intersection.surfaceNormal, pathSegment.ray.direction));
+
+                float cosTheta = glm::abs(glm::dot(intersection.surfaceNormal, pathSegment.ray.direction));
                 pathSegment.color *= bsdf * cosTheta / pdf; // throughput 
                 pathSegment.remainingBounces -= 1;
             }
         }
         else { // Case 2: no intersection 
-            pathSegments[idx].color = glm::vec3(0.0f);
             pathSegments[idx].remainingBounces = 0;
-            image[pathSegment.pixelIndex] += pathSegment.color;
         }
     }
 }
+
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
 {
@@ -333,6 +473,7 @@ struct isTerminated {
         return (p.remainingBounces <= 0);
     }
 };
+
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -378,6 +519,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
+            dev_emissiveGeoms,
+            hst_scene->emissiveGeoms.size(),
             dev_intersections
             );
         checkCUDAError("compute intersections");
@@ -406,7 +549,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             num_paths,
             dev_intersections,
             dev_paths,
-            dev_materials, 
+            dev_materials,
+            dev_geoms,
+            hst_scene->geoms.size(),
+            dev_emissiveGeoms,
+            hst_scene->emissiveGeoms.size(),
             dev_image
 			);
 		checkCUDAError("shade and bounce");
@@ -447,3 +594,4 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     checkCUDAError("pathtrace");
 }
+

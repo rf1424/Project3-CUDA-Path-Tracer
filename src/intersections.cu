@@ -115,6 +115,29 @@ __host__ __device__ float sphereIntersectionTest(
     return glm::length(r.origin - intersectionPoint);
 }
 
+__host__ __device__ float rectIntersectionTest(
+    Geom rect,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
+{
+    glm::vec3 ro = multiplyMV(rect.inverseTransform, glm::vec4(r.origin, 1.0f));
+    glm::vec3 rd = multiplyMV(rect.inverseTransform, glm::vec4(r.direction, 0.0f));
+
+    if (glm::abs(rd.y) < 1e-8f) return -1;
+    float t = (-0.5f - ro.y) / rd.y;
+    if (t <= 0.0f) return -1;
+
+    glm::vec3 p = ro + t * rd;
+    if (glm::abs(p.x) > 0.5f || glm::abs(p.z) > 0.5f) return -1;
+
+    intersectionPoint = multiplyMV(rect.transform, glm::vec4(p, 1.0f));
+    normal = glm::normalize(multiplyMV(rect.invTranspose, glm::vec4(0.0f, -1.0f, 0.0f, 0.0f)));
+    outside = glm::dot(r.direction, normal) < 0.0f;
+    return glm::length(r.origin - intersectionPoint);
+}
+
 __host__ __device__ void findClosestIntersection(
     Ray r,
     Geom* geoms,
@@ -122,7 +145,9 @@ __host__ __device__ void findClosestIntersection(
     float& t_min,
     glm::vec3& intersect_point,
     glm::vec3& normal,
-    int& hit_geom_index)
+    int& hit_geom_index,
+    Geom* emissiveGeoms,
+    int emissive_size)
 {
     float t;
     glm::vec3 tmp_intersect;
@@ -132,9 +157,10 @@ __host__ __device__ void findClosestIntersection(
     t_min = FLT_MAX;
     hit_geom_index = -1;
 
-    for (int i = 0; i < geoms_size; i++)
+    for (int i = 0; i < geoms_size + emissive_size; i++)
     {
-        Geom& geom = geoms[i];
+        Geom& geom = (i < geoms_size) ? geoms[i] : emissiveGeoms[i - geoms_size];
+        t = -1.0f;
 
         if (geom.type == CUBE)
         {
@@ -147,6 +173,10 @@ __host__ __device__ void findClosestIntersection(
         else if (geom.type == SDF)         {
             t = sdfIntersectionTest(r, tmp_intersect, tmp_normal);
 		}
+        else if (geom.type == RECT2D)
+        {
+            t = rectIntersectionTest(geom, r, tmp_intersect, tmp_normal, outside);
+        }
 
         if (t > 0.0f && t_min > t)
         {

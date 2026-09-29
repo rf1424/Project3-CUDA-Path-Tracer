@@ -7,6 +7,7 @@
 #include <thrust/remove.h>
 #include <thrust/execution_policy.h>
 #include <cstdio>
+#include <cfloat>
 
 
 // temp
@@ -152,10 +153,11 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
                 glm::vec2 screenPos = projectToScreen(cam, hitPoint);
 
                 if (screenPos.x >= 0 && screenPos.x < cam.resolution.x && screenPos.y >= 0 && screenPos.y < cam.resolution.y) {
-                    int pixelIndex = screenPos.y * cam.resolution.x + screenPos.x;
+                    int pixelIndex = (int)screenPos.y * cam.resolution.x + (int)screenPos.x;
+
                     //image[pixelIndex] = glm::vec3(1.0f, 0.0f, 1.0f) * static_cast<float>(iter);
                     //image[pixelIndex] += photon.power * static_cast<float>(iter);
-                    glm::vec3 contribution = photon.power * (material.color / PI)*1000.0f;
+                    glm::vec3 contribution = photon.power * (material.color / PI)*4000.0f;
                     atomicAdd(&image[pixelIndex].x, contribution.x);
                     atomicAdd(&image[pixelIndex].y, contribution.y);
                     atomicAdd(&image[pixelIndex].z, contribution.z);
@@ -183,12 +185,16 @@ void photonMap(Scene* scene, int numPhotons, int iter,
     Geom* geoms, int geomsSize, 
     Material* materials, int materialsSize,
     Camera cam, glm::vec3* image) {
-    // temporarily set a point light 
-    glm::vec3 pos = glm::vec3(0.0f, 9.0f, 0.0f);
-    glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
-    float power = 5.0f;
 
-    float phi = 4.0f * PI * power;// FLUX
+    std::vector<PhotonLight> lights = scene->photonLights;
+    if (lights.empty()) {
+        // fallback
+        printf("no photonmap light source\n");
+        return;
+    }
+
+    float totalPower = 0.0f;
+    for (const PhotonLight& light : lights) { totalPower += light.power; }
 
     // kernel to determine photon directions 
     Photon* dev_photons;
@@ -198,11 +204,28 @@ void photonMap(Scene* scene, int numPhotons, int iter,
 
 
 	// initialize photon directions
-    int traceDepth = 5;
+    int traceDepth = scene->state.traceDepth;
     const int blockSize = 128;
-    const int numBlocks = (numPhotons + blockSize - 1) / blockSize;
-    kernGeneratePhotonDirections<<<numBlocks, blockSize>>>(numPhotons, iter, traceDepth, pos, color * phi, dev_photons);
-    checkCUDAError("kernGeneratePhotonDirections");
+
+    // todo 
+    int photonsAssigned = 0;
+    for (size_t i = 0; i < lights.size(); i++)
+    {
+        const PhotonLight& light = lights[i];
+        int count = (i + 1 < lights.size()) // last?
+            ? static_cast<int>(numPhotons * (light.power / totalPower))
+            : (numPhotons - photonsAssigned); // remainder
+        if (count <= 0) { continue; }
+
+        float phi = 4.0f * PI * light.power; // FLUX
+        const int numBlocks = (count + blockSize - 1) / blockSize;
+        kernGeneratePhotonDirections<<<numBlocks, blockSize>>>(
+            count, iter, traceDepth, light.position, light.color * phi,
+            dev_photons + photonsAssigned);
+        checkCUDAError("kernGeneratePhotonDirections");
+
+        photonsAssigned += count;
+    }
 
     // photon tracing loop
     int depth = 0;
