@@ -85,7 +85,7 @@ static __host__ __device__ float triacontahedronSDF(glm::vec3 p)
 
 __host__ __device__ float sceneSDF(glm::vec3 p) {
 
-	p -= glm::vec3(0.0f, 2.0f, 0.0f);
+	p -= glm::vec3(0.0f, 2.4f, 0.0f);
 	const float scale = 0.6;
 	/*const glm::vec3 trans = glm::vec3(-1.0f, 4.0f, -1.0f);
 	const glm::vec3 rotat = glm::vec3(50.0f, 70.0f, 0.0f);
