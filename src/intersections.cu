@@ -187,3 +187,15 @@ __host__ __device__ void findClosestIntersection(
         }
     }
 }
+
+__host__ __device__ float rectArea(const Geom& rect) {
+    glm::vec3 e1 = glm::vec3(rect.transform * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f));
+    glm::vec3 e2 = glm::vec3(rect.transform * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f));
+    return glm::length(glm::cross(e1, e2));
+}
+
+__host__ __device__ void sampleRect(const Geom& rect, float u, float v, glm::vec3& pos, glm::vec3& nor) {
+	glm::vec4 localPos = glm::vec4(u - 0.5f, -0.5f, v - 0.5f, 1.0f); // -0.5, 0.5
+    pos = glm::vec3(rect.transform * localPos);
+    nor = glm::normalize(glm::vec3(rect.invTranspose * glm::vec4(0.0f, -1.0f, 0.0f, 0.0f)));
+}

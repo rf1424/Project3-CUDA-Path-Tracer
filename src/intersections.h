@@ -89,3 +89,10 @@ __host__ __device__ void findClosestIntersection(
     int& hit_geom_index,
     Geom* emissiveGeoms = nullptr,
     int emissive_size = 0);
+
+// area of rect light (bottom face of cube)
+__host__ __device__ float rectArea(const Geom& rect);
+
+// point on a rect light
+// downward emission normal
+__host__ __device__ void sampleRect(const Geom& rect, float u, float v, glm::vec3& pos, glm::vec3& nor);

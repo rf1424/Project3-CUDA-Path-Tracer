@@ -8,6 +8,7 @@
 #include <thrust/execution_policy.h>
 #include <cstdio>
 #include <cfloat>
+#include <vector>
 
 
 // temp
@@ -20,14 +21,14 @@ __host__ __device__ inline thrust::default_random_engine makePhotonRandomEngine(
     return thrust::default_random_engine(h);
 }
 
-__global__ void kernGeneratePhotonDirections(
+
+__global__ void kernGeneratePhotons(
     int numPhotons,
     int iter,
     int traceDepth,
-    glm::vec3 lightPos,
+    Geom light,
     glm::vec3 photonPower,
-    Photon* photons
-    )
+    Photon* photons)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPhotons)
@@ -38,18 +39,17 @@ __global__ void kernGeneratePhotonDirections(
     thrust::default_random_engine rng = makePhotonRandomEngine(iter, idx, traceDepth);
     thrust::uniform_real_distribution<float> u01(0, 1);
 
-    // Uniform point on the unit sphere temp
-    float z = 1.0f - 2.0f * u01(rng);
-    float r = sqrtf(glm::max(0.0f, 1.0f - z * z));
-    float angle = TWO_PI * u01(rng);
-    glm::vec3 direction(r * cosf(angle), r * sinf(angle), z);
+    // sample a point / nor 
+    glm::vec3 pos, nor;
+    sampleRect(light, u01(rng), u01(rng), pos, nor);
+    glm::vec3 direction = calculateRandomDirectionInHemisphere(nor, rng);
 
     Photon photon;
-    photon.origin = lightPos;
+    photon.origin = pos;
     photon.direction = direction;
-    photon.power = photonPower / static_cast<float>(numPhotons);
-	photon.passedGlass = false;
-	photon.remainingBounces = traceDepth;
+    photon.power = photonPower;
+    photon.passedGlass = false;
+    photon.remainingBounces = traceDepth;
 
     photons[idx] = photon;
 }
@@ -186,43 +186,53 @@ void photonMap(Scene* scene, int numPhotons, int iter,
     Material* materials, int materialsSize,
     Camera cam, glm::vec3* image) {
 
-    std::vector<PhotonLight> lights = scene->photonLights;
+    const std::vector<Geom>& lights = scene->emissiveGeoms;
     if (lights.empty()) {
-        // fallback
         printf("no photonmap light source\n");
         return;
     }
 
-    float totalPower = 0.0f;
-    for (const PhotonLight& light : lights) { totalPower += light.power; }
+    // 0.TOTAL FLUX OF LIGHT
+    // Phi = PI * A * Le
+    std::vector<glm::vec3> lightFlux(lights.size());
+    std::vector<float> lightFluxScalar(lights.size());
+    float totalFlux = 0.0f;
+    for (size_t i = 0; i < lights.size(); i++) {
+        const Material& m = scene->materials[lights[i].materialid];
+        glm::vec3 Le = m.color * m.emittance;
+        lightFlux[i] = PI * rectArea(lights[i]) * Le;
+        lightFluxScalar[i] = (lightFlux[i].x + lightFlux[i].y + lightFlux[i].z) / 3.0f;
+        totalFlux += lightFluxScalar[i];
+    }
+    if (totalFlux <= 0.0f) { return; }
 
-    // kernel to determine photon directions 
     Photon* dev_photons;
     cudaMalloc(&dev_photons, numPhotons * sizeof(Photon));
-	ShadeableIntersection* dev_photon_intersections;
-	cudaMalloc(&dev_photon_intersections, numPhotons * sizeof(ShadeableIntersection));
+    ShadeableIntersection* dev_photon_intersections;
+    cudaMalloc(&dev_photon_intersections, numPhotons * sizeof(ShadeableIntersection));
 
-
-	// initialize photon directions
     int traceDepth = scene->state.traceDepth;
     const int blockSize = 128;
 
-    // todo 
+    // for each light...
     int photonsAssigned = 0;
     for (size_t i = 0; i < lights.size(); i++)
     {
-        const PhotonLight& light = lights[i];
-        int count = (i + 1 < lights.size()) // last?
-            ? static_cast<int>(numPhotons * (light.power / totalPower))
+        // 1. GET PHOTON COUNT 
+        int count = (i + 1 < lights.size())
+            ? static_cast<int>(numPhotons * (lightFluxScalar[i] / totalFlux))
             : (numPhotons - photonsAssigned); // remainder
         if (count <= 0) { continue; }
 
-        float phi = 4.0f * PI * light.power; // FLUX
+		// 2. distribute PHOTON POWER of light to each photon
+        glm::vec3 photonPower = lightFlux[i] / static_cast<float>(count);
         const int numBlocks = (count + blockSize - 1) / blockSize;
-        kernGeneratePhotonDirections<<<numBlocks, blockSize>>>(
-            count, iter, traceDepth, light.position, light.color * phi,
+
+        // 3. get POS and DIRECTIONS 
+        kernGeneratePhotons<<<numBlocks, blockSize>>>(
+            count, iter, traceDepth, lights[i], photonPower,
             dev_photons + photonsAssigned);
-        checkCUDAError("kernGeneratePhotonDirections");
+        checkCUDAError("kernGeneratePhotons");
 
         photonsAssigned += count;
     }

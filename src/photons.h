@@ -18,12 +18,3 @@ void photonMap(
     Geom* geoms, int geomsSize,
     Material* materials, int materialsSize,
     Camera cam, glm::vec3* image);
-
-
-void generatePhotonDirections(
-    int numPhotons,
-    int iter,
-    glm::vec3 lightPos,
-    glm::vec3 lightColor,
-    float totalFlux,
-    Photon* dev_photons);
