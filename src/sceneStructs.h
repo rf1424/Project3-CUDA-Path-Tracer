@@ -45,7 +45,8 @@ struct Material
     } specular;
     float hasReflective;
     float hasRefractive;
-    float indexOfRefraction;
+    glm::vec3 indexOfRefraction; 
+    bool dispersive;
     float emittance;
 };
 

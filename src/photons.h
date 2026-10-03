@@ -9,7 +9,9 @@ struct Photon
     glm::vec3 direction;
     glm::vec3 power;
     bool passedGlass;
+    bool dispersed; 
     int remainingBounces;
+    int channel;      // 0: R, 1: G, 2: B
 };
 
 

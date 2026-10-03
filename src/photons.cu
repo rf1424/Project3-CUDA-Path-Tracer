@@ -28,6 +28,7 @@ __global__ void kernGeneratePhotons(
     int traceDepth,
     Geom light,
     glm::vec3 photonPower,
+    int indexOffset,
     Photon* photons)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -36,7 +37,7 @@ __global__ void kernGeneratePhotons(
         return;
     }
 
-    thrust::default_random_engine rng = makePhotonRandomEngine(iter, idx, traceDepth);
+    thrust::default_random_engine rng = makePhotonRandomEngine(iter, indexOffset + idx, traceDepth + 1);
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     // sample a point / nor 
@@ -49,6 +50,8 @@ __global__ void kernGeneratePhotons(
     photon.direction = direction;
     photon.power = photonPower;
     photon.passedGlass = false;
+    photon.dispersed = false;
+    photon.channel = 1;
     photon.remainingBounces = traceDepth;
 
     photons[idx] = photon;
@@ -157,8 +160,21 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
 			photon.passedGlass = true;
 
             thrust::default_random_engine rng = makePhotonRandomEngine(iter, idx, photon.remainingBounces);
+
+            
+            if (material.dispersive && !photon.dispersed) {
+
+                float u = u01(rng);
+                if (u < 1.0f / 3.0f) { photon.channel = 0; photon.power *= glm::vec3(3, 0, 0); }
+                else if (u < 2.0f / 3.0f) { photon.channel = 1; photon.power *= glm::vec3(0, 3, 0); }
+                else { photon.channel = 2; photon.power *= glm::vec3(0, 0, 3); }
+                photon.dispersed = true;
+            }
+
+            float ior = material.indexOfRefraction[photon.channel];
+
             float pdf;
-            glm::vec3 bsdf = scatterRay(photonRay, hitPoint, intersection.surfaceNormal, material, pdf, rng);
+            glm::vec3 bsdf = scatterRay(photonRay, hitPoint, intersection.surfaceNormal, material, pdf, ior, rng);
 
             float cosTheta = glm::abs(glm::dot(intersection.surfaceNormal, photonRay.direction));
             photon.power *= bsdf * cosTheta / pdf; // throughput 
@@ -256,7 +272,7 @@ void photonMap(Scene* scene, int numPhotons, int iter,
         // 3. get POS and DIRECTIONS 
         kernGeneratePhotons<<<numBlocks, blockSize>>>(
             count, iter, traceDepth, lights[i], photonPower,
-            dev_photons + photonsAssigned);
+            photonsAssigned, dev_photons + photonsAssigned);
         checkCUDAError("kernGeneratePhotons");
 
         photonsAssigned += count;

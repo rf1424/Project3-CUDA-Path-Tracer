@@ -50,12 +50,13 @@ __host__ __device__ glm::vec3 scatterRay(
     glm::vec3 normal,
     const Material &m,
     float &pdf,
+    float ior, 
     thrust::default_random_engine &rng)
 {
    
     if (m.hasRefractive > 0.0f) // DIELECTRIC 
     {
-        return sampleDielectric(ray, intersect, normal, m, pdf, rng);
+        return sampleDielectric(ray, intersect, normal, m, pdf, ior, rng);
 
     }
     else if (m.hasReflective > 0.0f) // SPECULAR MIRROR 

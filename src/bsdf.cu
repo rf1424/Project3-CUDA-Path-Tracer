@@ -80,8 +80,9 @@ __host__ __device__ glm::vec3 sampleDielectric(
     glm::vec3 normal,
     const Material& m,
     float& pdf,
+    float ior,
     thrust::default_random_engine& rng)
-{
+{   
     thrust::uniform_real_distribution<float> u01(0, 1);
     float r = u01(rng);
 
@@ -89,7 +90,7 @@ __host__ __device__ glm::vec3 sampleDielectric(
     glm::vec3 wo = - ray.direction;
     float cosThetaI = glm::dot(wo, normal); // wo, nor
 
-    float Fresnel = computeFresnelDielectric(cosThetaI, 1.0f, m.indexOfRefraction);
+    float Fresnel = computeFresnelDielectric(cosThetaI, 1.0f, ior);
     
     glm::vec3 wi;
 
@@ -106,12 +107,12 @@ __host__ __device__ glm::vec3 sampleDielectric(
         if (cosThetaI < 0.0f) {
             // exit
             n = -normal;
-            eta = m.indexOfRefraction / 1.0f;
+            eta = ior / 1.0f;
             cosThetaI = -cosThetaI;
         }
         else {
             // enter
-            eta = 1.0f / m.indexOfRefraction;
+            eta = 1.0f / ior;
         }
 
         wi = glm::refract(-wo, n, eta);

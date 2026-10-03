@@ -422,7 +422,9 @@ __global__ void shadeMaterial(
                 
                 // find next ray bounce, bsdf, and pdf
                 float pdf;
-                glm::vec3 bsdf = scatterRay(pathSegment.ray, isectPos, intersection.surfaceNormal, material, pdf, rng); 
+                // use g channel for IOR
+                glm::vec3 bsdf = scatterRay(pathSegment.ray, isectPos, intersection.surfaceNormal, material, pdf,
+                    material.indexOfRefraction[1], rng);
 
 
                 float cosTheta = glm::abs(glm::dot(intersection.surfaceNormal, pathSegment.ray.direction));

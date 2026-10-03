@@ -71,7 +71,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
 			newMaterial.hasReflective = 1;
 			newMaterial.hasRefractive = 1;
-			newMaterial.indexOfRefraction = p["IOR"];
+            if (p.contains("IOR_RGB")) {
+                const auto& n = p["IOR_RGB"];
+                newMaterial.indexOfRefraction = glm::vec3(n[0], n[1], n[2]);
+                newMaterial.dispersive = true;
+            } else {
+                newMaterial.indexOfRefraction = glm::vec3(static_cast<float>(p["IOR"]));
+                newMaterial.dispersive = false;
+            }
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
