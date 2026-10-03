@@ -114,6 +114,30 @@ __device__ glm::vec2 projectToScreen(
     }
 }
 
+__device__ float pixelFootprintArea(
+    const Camera& cam,
+    const glm::vec3& hitPoint,
+    const glm::vec3& normal)
+{
+	glm::vec3 view = glm::normalize(cam.view);
+    
+	glm::vec3 q = hitPoint - cam.position;
+	glm::vec3 pToCam = -glm::normalize(q);
+    float d = glm::length(q);
+	
+
+    // A_perp: first compute pixel area perp to view axis 
+	// px * py * (z^2 / |f|^2) * cos(alpha)
+    // |f| = 1, 
+	float z = glm::dot(q, view); // depth along view axis
+    float cosAlpha = z / d; // ratio betw pixel ray and view ray
+    float A_perp = cam.pixelLength.x * cam.pixelLength.y * z * z * cosAlpha;
+	
+    // A_surface: project it to actual surface area 
+    float cosTheta = glm::max(glm::abs(glm::dot(normal, pToCam)), 1e-4f);
+    float A_surface = A_perp / cosTheta; 
+    return A_surface;
+}
 
 __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections, int numPhotons, Material* materials, Camera cam, glm::vec3* image, int iter) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -157,7 +181,8 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
 
                     //image[pixelIndex] = glm::vec3(1.0f, 0.0f, 1.0f) * static_cast<float>(iter);
                     //image[pixelIndex] += photon.power * static_cast<float>(iter);
-                    glm::vec3 contribution = photon.power * (material.color / PI)*4000.0f;
+                    float footprint = pixelFootprintArea(cam, hitPoint, intersection.surfaceNormal);
+                    glm::vec3 contribution = photon.power * (material.color / PI) / footprint;
                     atomicAdd(&image[pixelIndex].x, contribution.x);
                     atomicAdd(&image[pixelIndex].y, contribution.y);
                     atomicAdd(&image[pixelIndex].z, contribution.z);

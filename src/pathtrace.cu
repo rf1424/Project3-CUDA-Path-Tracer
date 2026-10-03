@@ -167,6 +167,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
         segment.prevSpecular = true; // count direct camera ray as specular for MIS
+        segment.seenDiffuse = false;
     }
 }
 
@@ -391,9 +392,9 @@ __global__ void shadeMaterial(
             // Case 0: Hit Light source
             if (material.emittance > 0.0f) {
                 bool frontFacing = glm::dot(pathSegment.ray.direction, intersection.surfaceNormal) < 0.0f;
-                // camera ray or after hitting specular-> add Le. 
+                // camera ray or specular chain from camera -> add Le
                 // after diffuse -> already counted by DirectMIS
-                if (pathSegment.prevSpecular && frontFacing) {
+                if (pathSegment.prevSpecular && !pathSegment.seenDiffuse && frontFacing) {
 					glm::vec3 Le = material.color * material.emittance;
 					image[pathSegment.pixelIndex] += pathSegment.color * Le; // throughput * Le
                 }
@@ -413,6 +414,7 @@ __global__ void shadeMaterial(
                         geoms, geoms_size, lights, numLights, materials, rng);
                     image[pathSegment.pixelIndex] += directLight * pathSegment.color; // directLight * throughput 
                     pathSegment.prevSpecular = false;
+                    pathSegment.seenDiffuse = true;
                 }
                 else { // SPECULAR
                     pathSegment.prevSpecular = true;
@@ -490,7 +492,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
     int num_paths = dev_path_end - dev_paths;
-    bool iterationComplete = true;// false;
+    bool iterationComplete = false;
 
     // bounce loop
     while (!iterationComplete)

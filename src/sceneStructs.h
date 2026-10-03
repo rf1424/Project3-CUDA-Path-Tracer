@@ -77,6 +77,7 @@ struct PathSegment
     int pixelIndex;
     int remainingBounces;
     bool prevSpecular;
+    bool seenDiffuse; 
 };
 
 // Use with a corresponding PathSegment to do:
