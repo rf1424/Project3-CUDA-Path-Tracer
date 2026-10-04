@@ -377,18 +377,6 @@ __global__ void shadeMaterial(
     }
 }
 
-// Add the current iteration's output to the overall image
-__global__ void finalGather(int n, glm::vec3* image, PathSegment* iterationPaths)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-    if (index < n)
-    {
-        PathSegment iterationPath = iterationPaths[index];
-        image[iterationPath.pixelIndex] += iterationPath.color;
-    }
-}
-
 __global__ void writeDepth(int n, PathSegment* paths, ShadeableIntersection* intersections, float* depth)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -514,11 +502,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             guiData->TracedDepth = depth;
         }
     } // end of the bounce loop
-
-    // Assemble this iteration and apply it to the image
-    dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    //printf("num_paths before finalGather: %d\n", num_paths);
-    //finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths); 
 
     // PHOTON MAP PASS
     photonMap(hst_scene, hst_scene->state.photonCount, iter,
