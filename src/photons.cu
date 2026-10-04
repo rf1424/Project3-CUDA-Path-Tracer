@@ -187,9 +187,7 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
         }
         else { // diffuse 
             if (photon.passedGlass) {
-                // todo test code 
-                // project into screen space 
-                // color pixel PINK vec3(1, 0, 1)
+                
                 glm::vec2 screenPos = projectToScreen(cam, hitPoint);
 
                 if (screenPos.x >= 0 && screenPos.x < cam.resolution.x && screenPos.y >= 0 && screenPos.y < cam.resolution.y) {
@@ -206,7 +204,7 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
                     }
                 }
             }
-            // todo terminate on first diffuse hit for now 
+            
             photons[idx].remainingBounces = 0;
         }
     } else {

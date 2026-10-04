@@ -67,7 +67,4 @@ __host__ __device__ glm::vec3 scatterRay(
     {
         return sampleDiffuse(ray, intersect, normal, m, pdf, rng);
     }
-    
-	/*pdf = glm::dot(dir, normal) / PI;
-	return m.color / PI;*/
 }

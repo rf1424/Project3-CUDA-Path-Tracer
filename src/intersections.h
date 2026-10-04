@@ -90,7 +90,7 @@ __host__ __device__ void findClosestIntersection(
     Geom* emissiveGeoms = nullptr,
     int emissive_size = 0);
 
-// area of rect light (bottom face of cube)
+// use for area of rect light (bottom face of cube)
 __host__ __device__ float rectArea(const Geom& rect);
 
 // point on a rect light

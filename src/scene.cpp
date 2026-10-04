@@ -42,7 +42,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& name = item.key();
         const auto& p = item.value();
         Material newMaterial{};
-        // TODO: handle materials loading differently
         if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];
@@ -113,7 +112,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         if (materials[newGeom.materialid].emittance > 0.0f)
         {
-            // temp todo: all lights 2D rect area lights
+            // support 2D rectangle area lights
             newGeom.type = RECT2D;
             emissiveGeoms.push_back(newGeom);
         }

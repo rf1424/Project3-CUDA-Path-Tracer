@@ -87,16 +87,7 @@ __host__ __device__ float sceneSDF(glm::vec3 p) {
 
 	p -= glm::vec3(0.0f, 2.f, 0.0f);
 	const float scale = 0.6;
-	/*const glm::vec3 trans = glm::vec3(-1.0f, 4.0f, -1.0f);
-	const glm::vec3 rotat = glm::vec3(50.0f, 70.0f, 0.0f);
 	
-	p -= trans;
-	p = glm::vec3(glm::rotate(glm::mat4(1.0f), -glm::radians(rotat.x), glm::vec3(1.0f, 0.0f, 0.0f)) * glm::vec4(p, 1.0f));
-	p = glm::vec3(glm::rotate(glm::mat4(1.0f), -glm::radians(rotat.y), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::vec4(p, 1.0f));
-	p = glm::vec3(glm::rotate(glm::mat4(1.0f), -glm::radians(rotat.z), glm::vec3(0.0f, 0.0f, 1.0f)) * glm::vec4(p, 1.0f));
-
-	p /= scale;*/
-
 	//return boxSDF(p, glm::vec3(1.0f, 1.0f, 1.0f)-glm::vec3(0.2)) * scale-0.2;
 	float sph = sphereSDF(p - glm::vec3(0.0f)) * scale;
 	float cupp = cutHollowSphereSDF(p, 1.8f, 0.5f, 0.2f) * scale;
