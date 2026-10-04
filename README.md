@@ -1,6 +1,8 @@
 CUDA Path Tracer
 ================
 
+![alt text](cornell.2026-10-04_03-47-11z.2032samp.png)
+
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
 * (TODO) YOUR NAME HERE

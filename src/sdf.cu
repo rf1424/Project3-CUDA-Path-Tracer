@@ -92,7 +92,7 @@ __host__ __device__ float sceneSDF(glm::vec3 p) {
 
 	p -= glm::vec3(0.0f, 0.f, -4.0f);
 	
-	float sph = sphereSDF(p));
+	float sph = sphereSDF(p);
 
 	p += glm::vec3(0.0f, 0.f, 8.0f);
 	float triacon = triacontahedronSDF(p);
