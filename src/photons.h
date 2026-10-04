@@ -19,4 +19,4 @@ void photonMap(
     Scene* scene, int numPhotons, int iter,
     Geom* geoms, int geomsSize,
     Material* materials, int materialsSize,
-    Camera cam, glm::vec3* image);
+    Camera cam, glm::vec3* image, const float* camDepth);

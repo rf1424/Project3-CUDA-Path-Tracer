@@ -67,6 +67,7 @@ struct RenderState
     Camera camera;
     unsigned int iterations;
     int traceDepth;
+    int photonCount = 500000;
     std::vector<glm::vec3> image;
     std::string imageName;
 };
@@ -91,9 +92,3 @@ struct ShadeableIntersection
   int materialId;
 };
 
-struct PhotonLight
-{
-    glm::vec3 position;
-    glm::vec3 color;
-    float power;
-};

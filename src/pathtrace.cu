@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cuda.h>
 #include <cmath>
+#include <cfloat>
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
@@ -83,6 +84,7 @@ static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 static int* dev_materialIds = NULL;
+static float* dev_depth = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -116,6 +118,7 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     cudaMalloc(&dev_materialIds, pixelcount * sizeof(int));
+    cudaMalloc(&dev_depth, pixelcount * sizeof(float));
 
     checkCUDAError("pathtraceInit");
 }
@@ -129,6 +132,7 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
 	cudaFree(dev_materialIds);
+    cudaFree(dev_depth);
 
     checkCUDAError("pathtraceFree");
 }
@@ -439,20 +443,30 @@ __global__ void shadeMaterial(
 }
 
 // Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
+__global__ void finalGather(int n, glm::vec3* image, PathSegment* iterationPaths)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
-    if (index < nPaths)
+    if (index < n)
     {
         PathSegment iterationPath = iterationPaths[index];
         image[iterationPath.pixelIndex] += iterationPath.color;
     }
 }
 
-__global__ void extractMaterialIds(int nPaths, ShadeableIntersection* intersections, int* materialIds) {
+__global__ void writeDepth(int n, PathSegment* paths, ShadeableIntersection* intersections, float* depth)
+{
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-    if (index < nPaths)
+    if (index < n)
+    {
+        float t = intersections[index].t;
+        depth[paths[index].pixelIndex] = t > 0.0f ? t : FLT_MAX;
+    }
+}
+
+__global__ void extractMaterialIds(int n, ShadeableIntersection* intersections, int* materialIds) {
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+    if (index < n)
     {
 		materialIds[index] = intersections[index].materialId;
     }
@@ -517,6 +531,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             );
         checkCUDAError("compute intersections");
 
+        if (depth == 0) {
+            writeDepth<<<numblocksPathSegmentTracing, blockSize1d>>>(num_paths, dev_paths, dev_intersections, dev_depth);
+            checkCUDAError("write depth");
+        }
+
         // sort intersections by material id
 #if SORT_BY_MATERIAL
         extractMaterialIds<<<numblocksPathSegmentTracing, blockSize1d>>>(
@@ -570,11 +589,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths); 
 
     // PHOTON MAP PASS
-	int numPhotons = 500000; // number of photons to emit
-    photonMap(hst_scene, numPhotons, iter,
+    photonMap(hst_scene, hst_scene->state.photonCount, iter,
         dev_geoms, hst_scene->geoms.size(),
         dev_materials, hst_scene->materials.size(),
-        cam, dev_image);
+        cam, dev_image, dev_depth);
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);

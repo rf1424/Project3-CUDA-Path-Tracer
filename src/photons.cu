@@ -142,7 +142,7 @@ __device__ float pixelFootprintArea(
     return A_surface;
 }
 
-__global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections, int numPhotons, Material* materials, Camera cam, glm::vec3* image, int iter) {
+__global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections, int numPhotons, Material* materials, Camera cam, glm::vec3* image, int iter, const float* camDepth) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPhotons) {
         return;
@@ -163,7 +163,7 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
 
             
             if (material.dispersive && !photon.dispersed) {
-
+                thrust::uniform_real_distribution<float> u01(0, 1);
                 float u = u01(rng);
                 if (u < 1.0f / 3.0f) { photon.channel = 0; photon.power *= glm::vec3(3, 0, 0); }
                 else if (u < 2.0f / 3.0f) { photon.channel = 1; photon.power *= glm::vec3(0, 3, 0); }
@@ -194,7 +194,8 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
 
                 if (screenPos.x >= 0 && screenPos.x < cam.resolution.x && screenPos.y >= 0 && screenPos.y < cam.resolution.y) {
                     int pixelIndex = (int)screenPos.y * cam.resolution.x + (int)screenPos.x;
-
+                    float hitDist = glm::length(hitPoint - cam.position);
+                    if (hitDist <= camDepth[pixelIndex] * 1.02f) {
                     //image[pixelIndex] = glm::vec3(1.0f, 0.0f, 1.0f) * static_cast<float>(iter);
                     //image[pixelIndex] += photon.power * static_cast<float>(iter);
                     float footprint = pixelFootprintArea(cam, hitPoint, intersection.surfaceNormal);
@@ -202,6 +203,7 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
                     atomicAdd(&image[pixelIndex].x, contribution.x);
                     atomicAdd(&image[pixelIndex].y, contribution.y);
                     atomicAdd(&image[pixelIndex].z, contribution.z);
+                    }
                 }
             }
             // todo terminate on first diffuse hit for now 
@@ -225,7 +227,7 @@ struct isTerminatedPhoton {
 void photonMap(Scene* scene, int numPhotons, int iter, 
     Geom* geoms, int geomsSize, 
     Material* materials, int materialsSize,
-    Camera cam, glm::vec3* image) {
+    Camera cam, glm::vec3* image, const float* camDepth) {
 
     const std::vector<Geom>& lights = scene->emissiveGeoms;
     if (lights.empty()) {
@@ -305,7 +307,8 @@ void photonMap(Scene* scene, int numPhotons, int iter,
             materials,
             cam,
             image,
-            iter
+            iter,
+            camDepth
 			);
 
         checkCUDAError("evalPhoton");

@@ -122,19 +122,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
             geoms.push_back(newGeom);
         }
     }
-    if (data.contains("PhotonLights"))
-    {
-        for (const auto& lightData : data["PhotonLights"])
-        {
-            const auto& pos = lightData["POSITION"];
-            const auto& col = lightData["COLOR"];
-            PhotonLight newLight{};
-            newLight.position = glm::vec3(pos[0], pos[1], pos[2]);
-            newLight.color = glm::vec3(col[0], col[1], col[2]);
-            newLight.power = lightData["POWER"];
-            photonLights.push_back(newLight);
-        }
-    }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -144,6 +131,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     state.iterations = cameraData["ITERATIONS"];
     state.traceDepth = cameraData["DEPTH"];
     state.imageName = cameraData["FILE"];
+    state.photonCount = cameraData.value("PHOTONS", state.photonCount);
     const auto& pos = cameraData["EYE"];
     const auto& lookat = cameraData["LOOKAT"];
     const auto& up = cameraData["UP"];
