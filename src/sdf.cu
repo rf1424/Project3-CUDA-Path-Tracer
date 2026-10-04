@@ -87,14 +87,18 @@ __host__ __device__ float sceneSDF(glm::vec3 p) {
 
 	p -= glm::vec3(0.0f, 2.f, 0.0f);
 	const float scale = 0.6;
-	
-	//return boxSDF(p, glm::vec3(1.0f, 1.0f, 1.0f)-glm::vec3(0.2)) * scale-0.2;
-	float sph = sphereSDF(p - glm::vec3(0.0f)) * scale;
-	float cupp = cutHollowSphereSDF(p, 1.8f, 0.5f, 0.2f) * scale;
-	float triacon = triacontahedronSDF(p) * scale;
-	float oct = octahedronSDF(p, 2.0f) * scale;
 
-	return oct;
+	float oct = octahedronSDF(p, 2.0f);
+
+	p -= glm::vec3(0.0f, 0.f, -4.0f);
+	
+	float sph = sphereSDF(p));
+
+	p += glm::vec3(0.0f, 0.f, 8.0f);
+	float triacon = triacontahedronSDF(p);
+	
+
+	return glm::min(glm::min(oct, sph), triacon);
 	
 }
 

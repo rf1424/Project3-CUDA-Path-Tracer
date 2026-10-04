@@ -11,7 +11,7 @@
 #include <vector>
 
 
-// temp
+
 __host__ __device__ inline thrust::default_random_engine makePhotonRandomEngine(int iter, int index, int depth)
 {
     const unsigned int kPhotonStream = 9999u;
@@ -194,13 +194,11 @@ __global__ void evalPhoton(Photon* photons, ShadeableIntersection* intersections
                     int pixelIndex = (int)screenPos.y * cam.resolution.x + (int)screenPos.x;
                     float hitDist = glm::length(hitPoint - cam.position);
                     if (hitDist <= camDepth[pixelIndex] * 1.02f) {
-                    //image[pixelIndex] = glm::vec3(1.0f, 0.0f, 1.0f) * static_cast<float>(iter);
-                    //image[pixelIndex] += photon.power * static_cast<float>(iter);
-                    float footprint = pixelFootprintArea(cam, hitPoint, intersection.surfaceNormal);
-                    glm::vec3 contribution = photon.power * (material.color / PI) / footprint;
-                    atomicAdd(&image[pixelIndex].x, contribution.x);
-                    atomicAdd(&image[pixelIndex].y, contribution.y);
-                    atomicAdd(&image[pixelIndex].z, contribution.z);
+                        float footprint = pixelFootprintArea(cam, hitPoint, intersection.surfaceNormal);
+                        glm::vec3 contribution = photon.power * (material.color / PI) / footprint;
+                        atomicAdd(&image[pixelIndex].x, contribution.x);
+                        atomicAdd(&image[pixelIndex].y, contribution.y);
+                        atomicAdd(&image[pixelIndex].z, contribution.z);
                     }
                 }
             }
