@@ -73,7 +73,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             if (p.contains("IOR_RGB")) {
                 const auto& n = p["IOR_RGB"];
                 newMaterial.indexOfRefraction = glm::vec3(n[0], n[1], n[2]);
-                newMaterial.dispersive = true;
+                newMaterial.dispersive = (DISPERSION != 0);
             } else {
                 newMaterial.indexOfRefraction = glm::vec3(static_cast<float>(p["IOR"]));
                 newMaterial.dispersive = false;

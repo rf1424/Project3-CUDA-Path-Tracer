@@ -165,6 +165,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.remainingBounces = traceDepth;
         segment.prevSpecular = true; // count direct camera ray as specular for MIS
         segment.seenDiffuse = false;
+        segment.dispersed = false;
+        segment.channel = 1;
     }
 }
 
@@ -314,7 +316,8 @@ __global__ void shadeMaterial(
     int geoms_size,
     Geom* lights,
     int numLights,
-    glm::vec3* image) {
+    glm::vec3* image,
+    int traceDepth) {
 
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -333,9 +336,15 @@ __global__ void shadeMaterial(
                 bool frontFacing = glm::dot(pathSegment.ray.direction, intersection.surfaceNormal) < 0.0f;
                 // camera ray or specular chain from camera -> add Le
                 // after diffuse -> already counted by DirectMIS
-                if (pathSegment.prevSpecular && !pathSegment.seenDiffuse && frontFacing) {
+                if (pathSegment.prevSpecular && (!pathSegment.seenDiffuse || !PHOTON_PASS) && frontFacing) {
 					glm::vec3 Le = material.color * material.emittance;
-					image[pathSegment.pixelIndex] += pathSegment.color * Le; // throughput * Le
+					glm::vec3 contribution = pathSegment.color * Le;
+#if ARTISTIC
+                    if (pathSegment.remainingBounces < traceDepth) {
+                        contribution = glm::min(contribution, glm::vec3(SPECULAR_LE_CLAMP));
+                    }
+#endif
+					image[pathSegment.pixelIndex] += contribution;
                 }
                 pathSegment.remainingBounces = 0;
             }
@@ -357,13 +366,24 @@ __global__ void shadeMaterial(
                 }
                 else { // SPECULAR
                     pathSegment.prevSpecular = true;
+                    if (material.dispersive && !pathSegment.dispersed) {
+#if ARTISTIC
+                        pathSegment.channel = (iter + pathSegment.pixelIndex) % 3;
+#else
+                        float u = u01(rng);
+                        pathSegment.channel = (u < 1.0f / 3.0f) ? 0 : (u < 2.0f / 3.0f) ? 1 : 2;
+#endif
+                        glm::vec3 mask(0.0f);
+                        mask[pathSegment.channel] = 3.0f;
+                        pathSegment.color *= mask;
+                        pathSegment.dispersed = true;
+                    }
                 }
                 
                 // find next ray bounce, bsdf, and pdf
                 float pdf;
-                // use g channel for IOR
                 glm::vec3 bsdf = scatterRay(pathSegment.ray, isectPos, intersection.surfaceNormal, material, pdf,
-                    material.indexOfRefraction[1], rng);
+                    material.indexOfRefraction[pathSegment.channel], rng);
 
 
                 float cosTheta = glm::abs(glm::dot(intersection.surfaceNormal, pathSegment.ray.direction));
@@ -459,6 +479,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             checkCUDAError("write depth");
         }
 
+#if !CAMERA_PASS
+        break;
+#endif
+
         // sort intersections by material id
 #if SORT_BY_MATERIAL
         extractMaterialIds<<<numblocksPathSegmentTracing, blockSize1d>>>(
@@ -485,7 +509,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             hst_scene->geoms.size(),
             dev_emissiveGeoms,
             hst_scene->emissiveGeoms.size(),
-            dev_image
+            dev_image,
+            traceDepth
 			);
 		checkCUDAError("shade and bounce");
         cudaDeviceSynchronize();
@@ -503,11 +528,12 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         }
     } // end of the bounce loop
 
-    // PHOTON MAP PASS
+#if PHOTON_PASS
     photonMap(hst_scene, hst_scene->state.photonCount, iter,
         dev_geoms, hst_scene->geoms.size(),
         dev_materials, hst_scene->materials.size(),
         cam, dev_image, dev_depth);
+#endif
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);

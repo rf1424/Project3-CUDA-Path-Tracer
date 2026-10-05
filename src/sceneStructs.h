@@ -80,6 +80,8 @@ struct PathSegment
     int remainingBounces;
     bool prevSpecular;
     bool seenDiffuse; 
+    bool dispersed;
+    int channel;
 };
 
 // Use with a corresponding PathSegment to do:
