@@ -3,22 +3,20 @@
 * (TODO) YOUR NAME HERE
 * Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
 
-CUDA Path Tracer
+Glass Caustics Path Tracer
 ================
 
-![](renders/cornell.2026-10-04_03-47-11z.2032samp.png)
 
-### With caustics vs. without caustics
+<p align="center">
+  <img src="renders/overRing.png" width="100%"><br>
+</p>
 
-With caustics vs. Without Caustics 
+<p align="center">
+  <img src="renders/blue0.png" width="100%"><br>
+</p>
 
-![alt text](renders/overRing.png)
-![alt text](renders/overRing_noPhotons.png)
 
 
-### More Renders
-
-<!-- TODO: add renders -->
 
 ## The Caustics Problem in Path Tracing
 
@@ -170,3 +168,28 @@ Without photons, the caustics in the spherical object scene and 3 glasses scenes
 
 ## 5. Bloopers
 
+
+<p align="center">
+  <img src="renders/Bloopers/sdfArtifacts.png" width="100%"><br>
+  <em>SDF and IOR artifacts, looks cool </em>
+</p>
+
+<p align="center">
+  <img src="renders/Bloopers/photons.png" width="100%"><br>
+  <em>Overexposing photons</em>
+</p>
+
+<p align="center">
+  <img src="renders/Bloopers/tooBright.png" width="49%">
+  <img src="renders/Bloopers/tooDark.png" width="49%"><br>
+  <em>Too bright, fireflies from MIS and NEE</em>
+  <em> / Too dark, Naive pathtracing</em>
+</p>
+
+<p align="center">
+  <img src="renders/Bloopers/lines.png" width="49%">
+  <img src="renders/Bloopers/vis2.png" width="49%"><br>
+  <em>Stream compaction bug</em>
+ / 
+  <em>Photons not normalized</em>
+</p>
