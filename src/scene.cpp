@@ -131,6 +131,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     state.traceDepth = cameraData["DEPTH"];
     state.imageName = cameraData["FILE"];
     state.photonCount = cameraData.value("PHOTONS", state.photonCount);
+    state.sdfScene = cameraData.value("SDF", 0);
     const auto& pos = cameraData["EYE"];
     const auto& lookat = cameraData["LOOKAT"];
     const auto& up = cameraData["UP"];

@@ -68,6 +68,7 @@ struct RenderState
     unsigned int iterations;
     int traceDepth;
     int photonCount = 500000;
+    int sdfScene = 0;
     std::vector<glm::vec3> image;
     std::string imageName;
 };

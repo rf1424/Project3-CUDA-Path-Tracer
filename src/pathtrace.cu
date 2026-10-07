@@ -19,6 +19,7 @@
 #include "intersections.h"
 #include "interactions.h"
 #include "photons.h"
+#include "sdf.h"
 
 #define SORT_BY_MATERIAL 0
 
@@ -89,6 +90,7 @@ void InitDataContainer(GuiDataContainer* imGuiData)
 void pathtraceInit(Scene* scene)
 {
     hst_scene = scene;
+    setSDFScene(scene->state.sdfScene);
 
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
