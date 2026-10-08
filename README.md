@@ -1,7 +1,8 @@
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Rin Fukuoka
+* [LinkedIn](https://www.linkedin.com/in/rin-fukuoka-4260772a2/) / [Personal website](https://www.rfukuoka.com/)
+* Tested on: * Tested on: Windows 11, i9-13900HX @ 2.20 GHz, 32GB RAM, RTX 4080 Laptop GPU 12GB
 
 Glass Caustics Path Tracer
 ================
@@ -23,12 +24,12 @@ Glass Caustics Path Tracer
 </p>
 
 <p float="center">
-  <img src="renders/covered0.png" width="49%" />
-   <img src="renders/covered1.png" width="49%" />
+  <img src="renders/covered3.png" width="49%" />
+   <img src="renders/covered0.png" width="49%" />
 </p>
 <p float="center">
-  <img src="renders/covered2.png" width="49%" />
-   <img src="renders/covered3.png" width="49%" />
+  <img src="renders/covered3.png" width="49%" />
+   <img src="renders/covered2.png" width="49%" />
 </p>
 
 
@@ -60,7 +61,6 @@ To solve this, I implemented photon splatting, a variation of photon mapping. In
 
 In a dielectric material, light either reflects or refracts based on the Fresnel reflectance. In my BSDF implementation (based on PBRT), I compute the dielectric Fresnel term and use it to randomly choose between reflection and refraction. At grazing angles Fresnel is high, so reflection is more likely. Otherwise, the ray refracts using Snell's law with the material's index of refraction. Total internal reflection always reflects the ray back inside the glass, which is important for the complex light paths that create caustics.
 
-<!-- ![](renders/naive.png) -->
 <p float="center">
   <img src="renders/Performance/cornellGlass00_21-05_120s.png" width="49%" />
    <img src="renders/glassRings.png" width="49%" />
@@ -147,7 +147,12 @@ Photons are projected onto the screen without knowing what the camera actually s
 
 Different colors refract at different angles in glass, causing dispersion. I approximate this without full spectral rendering by randomly selecting one RGB channel's IOR at the first specular bounce. Accumulated over samples, this creates a rainbow X) 🌈 
 
-![](renders/combined.png)
+<!-- ![](renders/naive.png) -->
+<p float="center">
+  <img src="renders/combined.png" width="49%" />
+   <img src="renders/dispersion9.png" width="49%" />
+</p>
+
 
 ### 3. Procedural SDF Shapes for Glass
 
@@ -259,3 +264,6 @@ Without photons, the caustics in the spherical object scene and 3 glasses scenes
     </td>
   </tr>
 </table>
+
+
+
