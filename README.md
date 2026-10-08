@@ -2,7 +2,7 @@
 
 * Rin Fukuoka
 * [LinkedIn](https://www.linkedin.com/in/rin-fukuoka-4260772a2/) / [Personal website](https://www.rfukuoka.com/)
-* Tested on: * Tested on: Windows 11, i9-13900HX @ 2.20 GHz, 32GB RAM, RTX 4080 Laptop GPU 12GB
+* Tested on: Windows 11, i9-13900HX @ 2.20 GHz, 32GB RAM, RTX 4080 Laptop GPU 12GB
 
 Glass Caustics Path Tracer
 ================
@@ -111,7 +111,7 @@ My implementation of Photon Pass as follows:
 - If it hits a specular surface: keep bouncing, using the same BSDF logic as the camera pass.
 - If it hits a diffuse surface after a specular surface: project photon at that location onto the camera image. 
 
-Photon visualization
+Photon visualization:
 
 | 500 samples | 5000 samples |
 |:---:|:---:|
