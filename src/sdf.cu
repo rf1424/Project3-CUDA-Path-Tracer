@@ -276,6 +276,131 @@ static __host__ __device__ float glassPanels(glm::vec3 p)
 	return d2 * 0.3f;
 }
 
+// Value noise 3D by iq
+// https://www.shadertoy.com/view/4sfGzS
+static __host__ __device__ inline float hash31(glm::ivec3 p)
+{
+	// 3D -> 1D
+	unsigned int n = (unsigned int)(p.x * 3 + p.y * 113 + p.z * 311);
+
+	// 1D hash by Hugo Elias
+	n = (n << 13) ^ n;
+	n = n * (n * n * 15731u + 789221u) + 1376312589u;
+	return float(n & 0x0fffffffu) / float(0x0fffffff);
+}
+
+static __host__ __device__ inline float valueNoise3D(glm::vec3 x)
+{
+	glm::ivec3 i = glm::ivec3(glm::floor(x));
+	glm::vec3 f = glm::fract(x);
+	f = f * f * (3.0f - 2.0f * f);
+
+	return glm::mix(glm::mix(glm::mix(hash31(i + glm::ivec3(0, 0, 0)),
+	                                  hash31(i + glm::ivec3(1, 0, 0)), f.x),
+	                         glm::mix(hash31(i + glm::ivec3(0, 1, 0)),
+	                                  hash31(i + glm::ivec3(1, 1, 0)), f.x), f.y),
+	                glm::mix(glm::mix(hash31(i + glm::ivec3(0, 0, 1)),
+	                                  hash31(i + glm::ivec3(1, 0, 1)), f.x),
+	                         glm::mix(hash31(i + glm::ivec3(0, 1, 1)),
+	                                  hash31(i + glm::ivec3(1, 1, 1)), f.x), f.y), f.z);
+}
+
+
+static __host__ __device__ float sphereFieldCell(glm::vec3 p, glm::vec2 cell)
+{
+	const float num = 5.0f;
+	const float s = 5.0f;
+
+	float r = random12(cell);
+	float dens = glm::smoothstep(num * sqrtf(2.0f) + 2.0f, 0.0f, glm::length(cell));
+	if (r > dens) return 1e9f;
+
+	float rr = glm::fract(r * 10.0f);
+	p.x -= s * cell.x;
+	p.z -= s * cell.y;
+	p.y -= 1.0f;
+	p += 2.0f * glm::vec3(r * 2.0f - 1.0f, 0.0f, rr * 2.0f - 1.0f);
+
+	glm::vec2 xz = rot2(glm::vec2(p.x, p.z), rr);
+	p.x = xz.x; p.z = xz.y;
+	glm::vec2 xy = rot2(glm::vec2(p.x, p.y), rr);
+	p.x = xy.x; p.y = xy.y;
+
+	float sph = tetraPodSDF(p);
+	if (r < 0.3f) sph += valueNoise3D(p * 6.0f) * 0.08f;
+	return sph;
+}
+
+static __host__ __device__ float sphereFieldSDF(glm::vec3 p)
+{
+	const float num = 5.0f;
+	const float s = 5.0f;
+	glm::vec2 id = glm::vec2(glm::clamp(glm::round(p.x / s), -num, num),
+	                         glm::clamp(glm::round(p.z / s), -num, num));
+
+	float d = sphereFieldCell(p, id);
+	for (int j = -1; j <= 1; j++)
+	{
+		for (int i = -1; i <= 1; i++)
+		{
+			glm::vec2 cell = id + glm::vec2(float(i), float(j));
+			if ((i == 0 && j == 0) || glm::abs(cell.x) > num || glm::abs(cell.y) > num) continue;
+			d = glm::min(d, sphereFieldCell(p, cell));
+		}
+	}
+	d = glm::min(d, 3.0f);
+	return d * 0.4f;
+}
+
+static __host__ __device__ float rippleLensSuperSDF(glm::vec3 p)
+{
+
+	
+
+	p -= 5.0f;
+
+	glm::vec2 xy = rot2(glm::vec2(p.x, p.y), PI / 4.0f);
+	p.x = xy.x; p.y = xy.y;
+
+	const float R = 8.0f;
+	const float h = 0.55f;
+
+	float lens = glm::max(
+		glm::length(p - glm::vec3(0.0f, h - R, 0.0f)) - R,
+		glm::length(p - glm::vec3(0.0f, R - h, 0.0f)) - R
+	);
+
+	float r = glm::length(glm::vec2(p.x, p.z));
+	float wTop = glm::smoothstep(-h, h, p.y);
+	float wRim = 1.0f - glm::smoothstep(4.0f, 5.0f, r);
+
+	float ripple = 0.04f * cosf(9.0f * r) * wTop * wRim;
+
+	xy = rot2(glm::vec2(p.x, p.y), PI/2.0f);
+	p.x = xy.x; p.y = xy.y;
+
+	float ring = 100000.0f;
+	for (int i = 0; i < 20; i++)
+	{
+		float t = (float)i;
+		float a = t * 0.01f;
+
+		/*p.xz = rot(p.xz, a);
+		p.xy = rot(p.xy, a);*/
+
+		glm::vec2 xz = rot2(glm::vec2(p.x, p.z), a);
+		p.x = xz.x; p.z = xz.y;
+		glm::vec2 xy = rot2(glm::vec2(p.x, p.y), a);
+		p.x = xy.x; p.y = xy.y;
+
+		float r = torusSDF(p, glm::vec2(3.5f + t * 0.1f, 0.05f));
+		ring = glm::min(ring, r);
+	}
+
+	float dd = (lens - ripple) * 0.68f;
+	return glm::min(ring, dd);
+}
+
 __host__ __device__ float sceneSDFDef(glm::vec3 p) {
 
 	p -= glm::vec3(0.0f, 2.f, 0.0f);
