@@ -154,45 +154,45 @@ Different colors refract at different angles in glass, causing dispersion. I app
 I used signed distance functions (SDFs) and raymarching to create procedural glass objects. 
 For glass, the inner sdfs must also be accurate (or underestimated). I refered to this [IQ's article](https://iquilezles.org/articles/interiordistance/) regarding this. 
 
-- smooth minimum of many donut shapes
-
-- using 3D voronoi noise to add roughness/texture to objects. More faces in glass causes more complex refractions.
-
 Smooth union torus SDFs procedurally: 
-<figure style="display: inline-block; width: 32%; margin: 0; text-align: center;">
-  <img src="renders/sdf4.png" alt="" style="width: 100%;">
-  
-</figure>
-<figure style="display: inline-block; width: 32%; margin: 0; text-align: center;">
-  <img src="renders/sdf0.png" alt="" style="width: 100%;">
-  
-</figure>
-<figure style="display: inline-block; width: 32%; margin: 0; text-align: center;">
-  <img src="renders/sdf2.png" alt="" style="width: 100%;">
-  
-</figure> 
 
+<table>
+  <tr>
+    <td><img src="renders/sdf4.png" width="100%"></td>
+    <td><img src="renders/sdf0.png" width="100%"></td>
+    <td><img src="renders/sdf2.png" width="100%"></td>
+  </tr>
+</table>
 
-Instancing by domain repetition: 
-<figure style="display: inline-block; width: 49%; margin: 0; text-align: center;">
-  <img src="renders/sdf3.png" alt="" style="width: 100%;">
-  <figcaption>cute tetrapods</figcaption>
-</figure>
-<figure style="display: inline-block; width: 49%; margin: 0; text-align: center;">
-  <img src="renders/sdf1.png" alt="" style="width: 100%;">
-  <figcaption>repeated along z, voronoi distortion </figcaption>
-</figure>
+Instancing by domain repetition:
 
+<table>
+  <tr>
+    <td width="50%">
+      <img src="renders/sdf3.png" width="100%">
+      <p align="center">cute tetrapods</p>
+    </td>
+    <td width="50%">
+      <img src="renders/sdf1.png" width="100%">
+      <p align="center">repeated along z, voronoi distortion</p>
+    </td>
+  </tr>
+</table>
 
-3D noise distortion on the SDF can create interesting glass refractions and caustics patterns. 
-<figure style="display: inline-block; width: 49%; margin: 0; text-align: center;">
-  <img src="renders/ufos1.png" alt="" style="width: 100%;">
-  <figcaption>Perlin noise </figcaption>
-</figure>
-<figure style="display: inline-block; width: 49%; margin: 0; text-align: center;">
-  <img src="renders/Panes.png" alt="" style="width: 100%;">
-  <figcaption>Voronoi noise</figcaption>
-</figure>
+3D noise distortion on the SDF can create interesting glass refractions and caustics patterns.
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="renders/ufos1.png" width="100%">
+      <p align="center">Perlin noise</p>
+    </td>
+    <td width="50%">
+      <img src="renders/Panes.png" width="100%">
+      <p align="center">Voronoi noise</p>
+    </td>
+  </tr>
+</table>
 
 
 ## 4. Performance
@@ -224,10 +224,9 @@ Without photons, the caustics in the spherical object scene and 3 glasses scenes
 
 ## 5. Bloopers
 
-
 <p align="center">
   <img src="renders/Bloopers/sdfArtifacts.png" width="100%"><br>
-  <em>SDF and IOR artifacts, looks cool </em>
+  <em>SDF and IOR artifacts, looks cool</em>
 </p>
 
 <p align="center">
@@ -235,27 +234,28 @@ Without photons, the caustics in the spherical object scene and 3 glasses scenes
   <em>Overexposing photons</em>
 </p>
 
-<p align="center">
-  <img src="renders/Bloopers/tooBright.png" width="49%">
-  <img src="renders/Bloopers/tooDark.png" width="49%"><br>
-  <em>Too bright, fireflies from MIS and NEE</em>
-  <em> / Too dark, Naive pathtracing</em>
-</p>
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="renders/Bloopers/tooBright.png" width="100%"><br>
+      <em>Too bright, fireflies from MIS and NEE</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="renders/Bloopers/tooDark.png" width="100%"><br>
+      <em>Too dark, Naive pathtracing</em>
+    </td>
+  </tr>
+</table>
 
-<p align="center">
-  <img src="renders/Bloopers/lines.png" width="49%">
-  <img src="renders/Bloopers/vis2.png" width="49%"><br>
-  <em>Stream compaction bug</em>
- / 
-  <em>Photons not normalized</em>
-</p>
-
-
-<p float="center">
-  <img src="renders/rippledGlass.png" width="49%" />
-   <img src="renders/dispersion1.png" width="49%" />
-</p>
-<p float="center">
-  <img src="renders/dispersion9.png" width="49%" />
-   <img src="renders/Performance/thickRings7_21-18_120s.png" width="49%" />
-</p>
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="renders/Bloopers/lines.png" width="100%"><br>
+      <em>Stream compaction bug</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="renders/Bloopers/vis2.png" width="100%"><br>
+      <em>Photons not normalized</em>
+    </td>
+  </tr>
+</table>
