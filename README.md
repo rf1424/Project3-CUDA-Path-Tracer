@@ -27,9 +27,22 @@ Glass Caustics Path Tracer
   <img src="renders/covered3.png" width="49%" />
    <img src="renders/covered0.png" width="49%" />
 </p>
+
 <p float="center">
-  <img src="renders/covered3.png" width="49%" />
-   <img src="renders/covered2.png" width="49%" />
+  <img src="renders/dispersion9.png" width="32%" />
+  <img src="renders/Oct.png" width="32%" />
+  <img src="renders/covered2.png" width="32%" />
+</p>
+
+
+#### Without caustics vs. with caustics 
+<p float="center">
+  <img src="renders/overRing_noPhotons.png" width="49%" />
+   <img src="renders/overRing.png" width="49%" />
+</p>
+<p float="center">
+  <img src="renders/blue1.png" width="49%" />
+   <img src="renders/blue0.png" width="49%" />
 </p>
 
 
@@ -54,10 +67,11 @@ To solve this, I implemented photon splatting, a variation of photon mapping. In
 3. [Procedural SDF Shapes for Glass](#3-procedural-sdf-shapes-for-glass)
 4. [Performance](#4-performance)
 5. [Bloopers](#5-bloopers)
+6. [Resources](#6-resources)
 
 ## Photon Splatting Path Tracer Pipeline
 
-### 0. Dielectrics
+## 0. Dielectrics
 
 In a dielectric material, light either reflects or refracts based on the Fresnel reflectance. In my BSDF implementation (based on PBRT), I compute the dielectric Fresnel term and use it to randomly choose between reflection and refraction. At grazing angles Fresnel is high, so reflection is more likely. Otherwise, the ray refracts using Snell's law with the material's index of refraction. Total internal reflection always reflects the ray back inside the glass, which is important for the complex light paths that create caustics.
 
@@ -68,7 +82,7 @@ In a dielectric material, light either reflects or refracts based on the Fresnel
 
 
 
-### 1. MIS / NEE
+## 1. MIS / NEE
 
 The basic path tracer shoots rays from the camera and samples new directions from the surface BSDF. If the path never hits a light, it contributes nothing to the final image.
 
@@ -92,7 +106,7 @@ Diffuse -> specular bounces through glass -> Light
 
 On diffuse surfaces, NEE treats the glass as an occluder, because a straight shadow ray to the light can't pass through a refractive surface. And during specular bounces the BSDF is a delta (pdf = 1), so there is no light sampling to do. The only way to get the caustic is for the glass BSDF sample to exit and hit the light by chance. With a small light that is very unlikely, and when it does happen the sample is very bright, creating fireflies.
 
-### 2. Caustics & Photon Splatting
+## 2. Caustics & Photon Splatting
 
 To solve this, I added a separate photon pass that traces light paths from the light source into the scene. I used photon splatting, a variant of photon mapping where each photon is traced independently and splatted directly onto the screen. Unlike traditional photon mapping, it doesn't need a spatial acceleration structure (like a kd-tree), which makes it easy to parallelize on the GPU. The downside is that photons have to be shot again every frame, but this fits well with how the path tracer already accumulates samples.
 
@@ -104,8 +118,7 @@ To solve this, I added a separate photon pass that traces light paths from the l
 
 #### Photon Pass
 
-My photon pass works as follows:
-My implementation of Photon Pass as follows:
+My photon pass works as follows: 
 - Choose a point on a light and shoot a photon in a cosine-weighted direction from it. Total flux is Phi = PI * A * Le, and each photon carries Phi / N.
 - If it hits a diffuse surface on the first bounce: discarded since it is direct lighting. 
 - If it hits a specular surface: keep bouncing, using the same BSDF logic as the camera pass.
@@ -149,17 +162,17 @@ Different colors refract at different angles in glass, causing dispersion. I app
 
 <!-- ![](renders/naive.png) -->
 <p float="center">
-  <img src="renders/combined.png" width="49%" />
+  <img src="renders/dispersionZOOM.png" width="49%" />
    <img src="renders/dispersion9.png" width="49%" />
 </p>
 
 
-### 3. Procedural SDF Shapes for Glass
+## 3. Procedural SDF Shapes for Glass
 
 I used signed distance functions (SDFs) and raymarching to create procedural glass objects. 
-For glass, the inner sdfs must also be accurate (or underestimated). I refered to this [IQ's article](https://iquilezles.org/articles/interiordistance/) regarding this. 
+For glass, the inner sdfs must also be accurate (or underestimated). I referred to this [IQ's article](https://iquilezles.org/articles/interiordistance/) regarding this. 
 
-Smooth union torus SDFs procedurally: 
+Smooth union of torus SDFs: 
 
 <table>
   <tr>
@@ -202,30 +215,46 @@ Instancing by domain repetition:
 
 ## 4. Performance
 
-Photon splatting pass on vs. off, rendered for the same amount of time (5s, 30s, 2min).
+Photon pass off vs. on, rendered for the same amount of time (5s, 30s, 2min).
 
-#### Cornell box
+##### Ray-intersected Primitives (cube, sphere)
 
-| | 5s | 30s | 120s |
-|:---:|:---:|:---:|:---:|
-| **No photon pass**<br>71.9 fps | ![](renders/Performance/cornellGlass00_21-05_5s.png) | ![](renders/Performance/cornellGlass00_21-05_30s.png) | ![](renders/Performance/cornellGlass00_21-05_120s.png) |
-| **Photon pass**<br>58.7 fps | ![](renders/Performance/cornellGlass00_21-02_5s.png) | ![](renders/Performance/cornellGlass00_21-02_30s.png) | ![](renders/Performance/cornellGlass00_21-02_120s.png) |
+Average fps: 71.2 without photons, 60.7 with photons.
 
-#### Glass spherical Object
+###### Large light
 
 | | 5s | 30s | 120s |
 |:---:|:---:|:---:|:---:|
-| **No photon pass**<br>25.5 fps | ![](renders/Performance/thickRings7_21-21_5s.png) | ![](renders/Performance/thickRings7_21-21_30s.png) | ![](renders/Performance/thickRings7_21-21_120s.png) |
-| **Photon pass**<br>32.4 fps | ![](renders/Performance/thickRings7_21-18_5s.png) | ![](renders/Performance/thickRings7_21-18_30s.png) | ![](renders/Performance/thickRings7_21-18_120s.png) |
+| **No photon pass** | ![](renders/Performance/cornellGlass00_21-05_5s.png) | ![](renders/Performance/cornellGlass00_21-05_30s.png) | ![](renders/Performance/cornellGlass00_21-05_120s.png) |
+| **Photon pass** | ![](renders/Performance/cornellGlass00_21-02_5s.png) | ![](renders/Performance/cornellGlass00_21-02_30s.png) | ![](renders/Performance/cornellGlass00_21-02_120s.png) |
 
-#### Three Glass Objects
+###### Small light
 
 | | 5s | 30s | 120s |
 |:---:|:---:|:---:|:---:|
-| **No photon pass**<br>35.0 fps | ![](renders/Performance/ACuteBall6_21-54_5s.png) | ![](renders/Performance/ACuteBall6_21-54_30s.png) | ![](renders/Performance/ACuteBall6_21-54_120s.png) |
-| **Photon pass**<br>46.9 fps | ![](renders/Performance/ACuteBall6_21-50_5s.png) | ![](renders/Performance/ACuteBall6_21-50_30s.png) | ![](renders/Performance/ACuteBall6_21-50_120s.png) |
+| **No photon pass** | ![](renders/Performance/AAPerfTest_21-39_5s.png) | ![](renders/Performance/AAPerfTest_21-39_30s.png) | ![](renders/Performance/AAPerfTest_21-39_120s.png) |
+| **Photon pass** | ![](renders/Performance/AAPerfTest_21-43_5s.png) | ![](renders/Performance/AAPerfTest_21-43_30s.png) | ![](renders/Performance/AAPerfTest_21-43_120s.png) |
 
-Without photons, the caustics in the spherical object scene and 3 glasses scenes are still grainy even after 2 minutes, while with photons they are already smooth. In the Cornell box, the large light lets the camera pass find caustics on its own, so the difference is smaller.
+##### Raymarched (SDF-based) Primitives
+
+Average fps: 30.25 without photons, 41.0 with photons.
+
+###### Glass rings
+
+| | 5s | 30s | 120s |
+|:---:|:---:|:---:|:---:|
+| **No photon pass** | ![](renders/Performance/thickRings7_21-21_5s.png) | ![](renders/Performance/thickRings7_21-21_30s.png) | ![](renders/Performance/thickRings7_21-21_120s.png) |
+| **Photon pass** | ![](renders/Performance/thickRings7_21-18_5s.png) | ![](renders/Performance/thickRings7_21-18_30s.png) | ![](renders/Performance/thickRings7_21-18_120s.png) |
+
+###### Three glass shapes
+
+| | 5s | 30s | 120s |
+|:---:|:---:|:---:|:---:|
+| **No photon pass** | ![](renders/Performance/ACuteBall6_21-54_5s.png) | ![](renders/Performance/ACuteBall6_21-54_30s.png) | ![](renders/Performance/ACuteBall6_21-54_120s.png) |
+| **Photon pass** | ![](renders/Performance/ACuteBall6_21-50_5s.png) | ![](renders/Performance/ACuteBall6_21-50_30s.png) | ![](renders/Performance/ACuteBall6_21-50_120s.png) |
+
+In the Cornell box with a large light, the camera pass can find caustics on its own, so the difference is smaller. With a small light, the same Cornell box is still noisy after 2 minutes without photons, while the photon pass gives clean caustics.
+Similar results show in the SDF-based scenes, although they generally take longer to converge with the raymarching being the bottleneck. 
 
 ## 5. Bloopers
 
@@ -247,7 +276,7 @@ Without photons, the caustics in the spherical object scene and 3 glasses scenes
     </td>
     <td width="50%" align="center">
       <img src="renders/Bloopers/tooDark.png" width="100%"><br>
-      <em>Too dark, Naive pathtracing</em>
+      <em>Too dark, naive pathtracing</em>
     </td>
   </tr>
 </table>
@@ -265,5 +294,8 @@ Without photons, the caustics in the spherical object scene and 3 glasses scenes
   </tr>
 </table>
 
+## 6. Resources
 
-
+- [A Practical Guide to Global Illumination using Photon Maps](https://graphics.stanford.edu/courses/cs348b-00/course8.pdf)
+- [Interior SDFs by IQ](https://iquilezles.org/articles/interiordistance/)
+- [Scalable Photon Splatting for Global Illumination    ](https://dl.acm.org/doi/pdf/10.1145/604471.604511)
