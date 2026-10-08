@@ -17,6 +17,20 @@ Glass Caustics Path Tracer
 
 
 
+<p float="center">
+  <img src="renders/cutGlass0.png" width="49%" />
+   <img src="renders/Panes.png" width="49%" />
+</p>
+
+<p float="center">
+  <img src="renders/covered0.png" width="49%" />
+   <img src="renders/covered1.png" width="49%" />
+</p>
+<p float="center">
+  <img src="renders/covered2.png" width="49%" />
+   <img src="renders/covered3.png" width="49%" />
+</p>
+
 
 ## The Caustics Problem in Path Tracing
 
@@ -46,7 +60,13 @@ To solve this, I implemented photon splatting, a variation of photon mapping. In
 
 In a dielectric material, light either reflects or refracts based on the Fresnel reflectance. In my BSDF implementation (based on PBRT), I compute the dielectric Fresnel term and use it to randomly choose between reflection and refraction. At grazing angles Fresnel is high, so reflection is more likely. Otherwise, the ray refracts using Snell's law with the material's index of refraction. Total internal reflection always reflects the ray back inside the glass, which is important for the complex light paths that create caustics.
 
-![](renders/naive.png)
+<!-- ![](renders/naive.png) -->
+<p float="center">
+  <img src="renders/Performance/cornellGlass00_21-05_120s.png" width="49%" />
+   <img src="renders/glassRings.png" width="49%" />
+</p>
+
+
 
 ### 1. MIS / NEE
 
@@ -131,13 +151,49 @@ Different colors refract at different angles in glass, causing dispersion. I app
 
 ### 3. Procedural SDF Shapes for Glass
 
-I used signed distance functions (SDFs) to create procedural glass objects in the scene
-
-inner sdfs must also be accurate (or underestimated). I refered to this iq's article regarding this.
+I used signed distance functions (SDFs) and raymarching to create procedural glass objects. 
+For glass, the inner sdfs must also be accurate (or underestimated). I refered to this [IQ's article](https://iquilezles.org/articles/interiordistance/) regarding this. 
 
 - smooth minimum of many donut shapes
 
 - using 3D voronoi noise to add roughness/texture to objects. More faces in glass causes more complex refractions.
+
+Smooth union torus SDFs procedurally: 
+<figure style="display: inline-block; width: 32%; margin: 0; text-align: center;">
+  <img src="renders/sdf4.png" alt="" style="width: 100%;">
+  
+</figure>
+<figure style="display: inline-block; width: 32%; margin: 0; text-align: center;">
+  <img src="renders/sdf0.png" alt="" style="width: 100%;">
+  
+</figure>
+<figure style="display: inline-block; width: 32%; margin: 0; text-align: center;">
+  <img src="renders/sdf2.png" alt="" style="width: 100%;">
+  
+</figure> 
+
+
+Instancing by domain repetition: 
+<figure style="display: inline-block; width: 49%; margin: 0; text-align: center;">
+  <img src="renders/sdf3.png" alt="" style="width: 100%;">
+  <figcaption>cute tetrapods</figcaption>
+</figure>
+<figure style="display: inline-block; width: 49%; margin: 0; text-align: center;">
+  <img src="renders/sdf1.png" alt="" style="width: 100%;">
+  <figcaption>repeated along z, voronoi distortion </figcaption>
+</figure>
+
+
+3D noise distortion on the SDF can create interesting glass refractions and caustics patterns. 
+<figure style="display: inline-block; width: 49%; margin: 0; text-align: center;">
+  <img src="renders/ufos1.png" alt="" style="width: 100%;">
+  <figcaption>Perlin noise </figcaption>
+</figure>
+<figure style="display: inline-block; width: 49%; margin: 0; text-align: center;">
+  <img src="renders/Panes.png" alt="" style="width: 100%;">
+  <figcaption>Voronoi noise</figcaption>
+</figure>
+
 
 ## 4. Performance
 
@@ -192,4 +248,14 @@ Without photons, the caustics in the spherical object scene and 3 glasses scenes
   <em>Stream compaction bug</em>
  / 
   <em>Photons not normalized</em>
+</p>
+
+
+<p float="center">
+  <img src="renders/rippledGlass.png" width="49%" />
+   <img src="renders/dispersion1.png" width="49%" />
+</p>
+<p float="center">
+  <img src="renders/dispersion9.png" width="49%" />
+   <img src="renders/Performance/thickRings7_21-18_120s.png" width="49%" />
 </p>
